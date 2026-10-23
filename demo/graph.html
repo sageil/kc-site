@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Graph Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div class="relative flex min-h-0 grow flex-col bg-canvas">
+    <header class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4">
+      <div class="flex min-w-0 items-center gap-2">
+        <span id="h-glyph"></span>
+        <h1 class="shrink-0 font-mono text-app-xs font-bold text-ink">Code graph</h1>
+        <span id="caption" class="truncate text-app-xs text-muted"></span>
+      </div>
+      <div class="flex shrink-0 items-center gap-1.5">
+        <div id="scope" class="flex overflow-hidden rounded border border-hairline font-mono text-app-2xs">
+          <button id="b-changed" type="button">Changed (2)</button>
+          <button id="b-project" type="button">Project</button>
+        </div>
+        <div class="flex overflow-hidden rounded border border-hairline font-mono text-app-2xs">
+          <button id="b-code" type="button">Code</button>
+          <button id="b-schema" type="button">Schema</button>
+        </div>
+        <button id="b-whole" type="button" class="flex cursor-pointer items-center gap-1 rounded border border-hairline px-2 py-0.5 font-mono text-app-2xs text-muted transition hover:bg-hover hover:text-ink" style="display:none"><span id="whole-glyph"></span>Whole project</button>
+        <button type="button" class="flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition border-hairline bg-subtle text-ink/80 hover:bg-hover hover:text-ink"><span id="close-glyph"></span>Close</button>
+      </div>
+    </header>
+    <div class="flex min-h-0 grow overflow-hidden">
+      <aside id="left" class="flex w-72 shrink-0 flex-col border-r border-hairline bg-panel"></aside>
+      <section class="relative flex min-w-0 grow flex-col overflow-hidden">
+        <button id="t-left" type="button" class="absolute top-1/2 left-2 z-10 flex h-8 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright"></button>
+        <button id="t-right" type="button" class="absolute top-1/2 right-2 z-10 flex h-8 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright" style="display:none"></button>
+        <nav id="trail" class="absolute top-3 left-3 z-10 flex max-w-[70%] flex-wrap items-center gap-1 rounded border border-hairline bg-panel px-1.5 py-0.5 font-mono text-app-2xs text-dim" aria-label="Path through the graph" style="display:none"></nav>
+        <div class="relative min-h-0 min-w-0 grow cursor-grab overflow-hidden bg-canvas">
+          <svg id="canvas" class="absolute inset-0 size-full select-none font-mono"></svg>
+          <div id="key" class="absolute bottom-10 left-3 z-10 flex max-w-64 flex-col gap-0.5 rounded-lg border border-hairline bg-elevated p-2 font-mono text-app-2xs elevated-shadow"></div>
+          <div class="absolute right-3 bottom-3 flex flex-col overflow-hidden rounded-md border border-hairline bg-panel shadow-lg shadow-black/30">
+            <button type="button" class="flex size-8 cursor-pointer items-center justify-center font-mono text-app-sm text-muted transition hover:bg-hover hover:text-ink">+</button>
+            <button type="button" class="flex size-8 cursor-pointer items-center justify-center border-t border-hairline font-mono text-app-sm text-muted transition hover:bg-hover hover:text-ink">−</button>
+            <button type="button" class="flex h-8 cursor-pointer items-center justify-center border-t border-hairline px-1 font-mono text-app-3xs text-muted uppercase transition hover:bg-hover hover:text-ink">Fit</button>
+          </div>
+          <div class="pointer-events-none absolute bottom-3 left-3 rounded bg-panel/80 px-2 py-1 font-mono text-app-3xs text-dim">100% · scroll to pan · pinch or ⌘-scroll to zoom · double-click opens the file</div>
+        </div>
+      </section>
+      <aside id="right" class="flex w-96 shrink-0 flex-col overflow-hidden border-l border-hairline bg-panel" style="display:none"></aside>
+    </div>
+  </div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+$("ptr").outerHTML = POINTER;
+$("h-glyph").outerHTML = icon("size-4 shrink-0 text-accent-indigo-bright", GLYPH.hub);
+$("whole-glyph").outerHTML = icon("size-3", GLYPH.hub);
+$("close-glyph").outerHTML = icon("size-3.5 shrink-0", GLYPH.close);
+$("t-left").innerHTML = icon("size-3.5", GLYPH.chevronLeft);
+$("t-right").innerHTML = icon("size-3.5", GLYPH.chevronRight);
+
+const ON = "bg-accent-indigo/15 px-2 py-0.5 text-ink";
+const ON_AMBER = "bg-accent-amber/15 px-2 py-0.5 text-ink";
+const OFF = "cursor-pointer px-2 py-0.5 text-muted transition hover:bg-hover hover:text-ink";
+const GROUP_FILLS = ["fill-accent-cyan", "fill-accent-indigo", "fill-accent-purple", "fill-accent-emerald", "fill-accent-amber"];
+const GROUP_DOTS = ["bg-accent-cyan", "bg-accent-indigo", "bg-accent-purple", "bg-accent-emerald", "bg-accent-amber"];
+const HALO = "[paint-order:stroke] stroke-canvas [stroke-linejoin:round]";
+const groups = ["src/http", "src/webhooks", "src/parser", "src/db", "tests"];
+const files = [
+  ["src/http/server.rs", 0, 170, 150, 4], ["src/http/router.rs", 0, 270, 240, 9], ["src/http/middleware.rs", 0, 130, 320, 5],
+  ["src/webhooks/send.rs", 1, 470, 170, 8], ["src/webhooks/retry.rs", 1, 560, 290, 6], ["src/webhooks/signing.rs", 1, 410, 340, 3],
+  ["src/parser/chunk.rs", 2, 760, 150, 7], ["src/parser/header.rs", 2, 720, 300, 5], ["src/parser/body.rs", 2, 870, 250, 4],
+  ["src/db/users.rs", 3, 300, 460, 6], ["src/db/deliveries.rs", 3, 480, 470, 5], ["src/db/pool.rs", 3, 380, 560, 3],
+  ["tests/webhooks.rs", 4, 640, 470, 4, true], ["tests/parser.rs", 4, 830, 440, 6, true],
+].map(([path, group, x, y, symbols, test]) => ({ path, group, x, y, symbols, test: !!test }));
+const at = (p) => files.findIndex((f) => f.path.endsWith(p));
+const edges = [["server.rs", "router.rs", 6], ["router.rs", "middleware.rs", 3], ["router.rs", "send.rs", 4], ["router.rs", "users.rs", 2], ["router.rs", "chunk.rs", 3],
+  ["send.rs", "retry.rs", 5], ["send.rs", "signing.rs", 2], ["send.rs", "deliveries.rs", 3], ["retry.rs", "header.rs", 2], ["chunk.rs", "header.rs", 6], ["chunk.rs", "body.rs", 3],
+  ["body.rs", "header.rs", 2], ["users.rs", "pool.rs", 4], ["deliveries.rs", "pool.rs", 3], ["tests/webhooks.rs", "send.rs", 3], ["tests/webhooks.rs", "retry.rs", 4],
+  ["tests/parser.rs", "chunk.rs", 5], ["tests/parser.rs", "header.rs", 3]].map(([a, b, calls]) => ({ from: at(a), to: at(b), calls }));
+const changed = [at("retry.rs"), at("header.rs")];
+
+const views = {
+  should_retry: {
+    kind: "fn", path: "src/webhooks/retry.rs", start: 14, end: 22, sig: "pub fn should_retry(status: u16, attempt: u32, backoff: &Backoff) -> bool",
+    callers: [["send_webhook", "src/webhooks/send.rs", 31, "exact"], ["retries_on_503", "tests/webhooks.rs", 12, "exact", true], ["stops_on_410", "tests/webhooks.rs", 30, "exact", true]],
+    callees: [["Backoff::delay", "src/webhooks/retry.rs", 9, "exact"], ["retry_after", "src/webhooks/retry.rs", 27, "exact"], ["parse_header", "src/parser/header.rs", 14, "likely"]],
+    tests: [["retries_on_503", ""], ["stops_on_410", ""]], outside: 0,
+    code: ["pub fn should_retry(status: u16, attempt: u32, backoff: &Backoff) -> bool {", "    if attempt >= backoff.max_tries {", "        return false;", "    }", "    match status {", "        408 | 429 | 500..=599 => true,", "        _ => !matches!(status, 400 | 401 | 410),", "    }", "}"],
+  },
+  send_webhook: {
+    kind: "fn", path: "src/webhooks/send.rs", start: 31, end: 58, sig: "pub async fn send_webhook(hook: &Webhook, event: &Event) -> Result<Delivery>",
+    callers: [["route", "src/http/router.rs", 22, "exact"], ["retries_on_503", "tests/webhooks.rs", 12, "exact", true]],
+    callees: [["sign_payload", "src/webhooks/signing.rs", 8, "exact"], ["should_retry", "src/webhooks/retry.rs", 14, "exact"], ["record_delivery", "src/db/deliveries.rs", 8, "exact"]],
+    tests: [["retries_on_503", ""], ["stops_on_410", "should_retry"]], outside: 2,
+    code: ["pub async fn send_webhook(hook: &Webhook, event: &Event) -> Result<Delivery> {", "    let body = serde_json::to_vec(event)?;", "    let signature = sign_payload(&hook.secret, &body);", "    let mut attempt = 0;", "    loop {", "        let reply = post(&hook.url, &body, &signature).await?;", "        if !should_retry(reply.status, attempt, &hook.backoff) {", "            return record_delivery(hook, &reply).await;", "        }"],
+  },
+};
+const signatures = { parse_header: "pub fn parse_header(headers: &str, name: &str) -> Option<&str>", retry_after: "pub fn retry_after(headers: &str) -> Option<u64>", "Backoff::delay": "pub fn delay(&self, attempt: u32) -> u64", send_webhook: "pub async fn send_webhook(hook: &Webhook, event: &Event) -> Result<Delivery>" };
+const fileSymbols = { "src/webhooks/retry.rs": [["struct", "Backoff", 3], ["fn", "Backoff::delay", 9], ["fn", "should_retry", 14], ["fn", "retry_after", 27]] };
+const tables = [["users", 4, 300, 230], ["webhooks", 5, 520, 190], ["deliveries", 6, 450, 360], ["delivery_attempts", 5, 660, 380]];
+const tableEdges = [[1, 0], [2, 1], [3, 2]];
+
+const state = { scope: "project", schema: false, hover: null, chosen: null, focus: null, trail: [], hoverNode: null, table: null };
+const canvas = $("canvas");
+
+function arc(a, b) {
+  const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1];
+  return `M ${a[0]} ${a[1]} Q ${mx - dy * 0.15} ${my + dx * 0.15} ${b[0]} ${b[1]}`;
+}
+function elbow(from, to) {
+  const middle = (from[0] + to[0]) / 2, rise = to[1] - from[1];
+  if (Math.abs(rise) < 1) return `M ${from[0]} ${from[1]} H ${to[0]}`;
+  const bend = Math.min(Math.abs(rise) / 2, 10) * Math.sign(rise), turn = Math.abs(bend) * Math.sign(to[0] - from[0]);
+  return `M ${from[0]} ${from[1]} H ${middle - turn} Q ${middle} ${from[1]} ${middle} ${from[1] + bend} V ${to[1] - bend} Q ${middle} ${to[1]} ${middle + turn} ${to[1]} H ${to[0]}`;
+}
+const radius = (n) => 5 + Math.sqrt(n) * 1.6;
+function defs() {
+  return `<defs>${[["koda-graph-out", "fill-accent-cyan-bright"], ["koda-graph-in", "fill-accent-amber-bright"]].map(([id, cls]) => `<marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="${cls}"/></marker>`).join("")}</defs>`;
+}
+function linkStyle(focus, from, to) {
+  if (focus == null) return ["stroke-dim", 0.2, ""];
+  if (from === focus) return ["stroke-accent-cyan-bright", 0.95, "url(#koda-graph-out)"];
+  if (to === focus) return ["stroke-accent-amber-bright", 0.95, "url(#koda-graph-in)"];
+  return ["stroke-dim", 0.05, ""];
+}
+
+function overviewNow() {
+  if (state.scope !== "changed") return { keep: new Set(files.map((_, i) => i)), links: edges };
+  const links = edges.filter((e) => changed.includes(e.from) || changed.includes(e.to));
+  return { keep: new Set([...changed, ...links.flatMap((e) => [e.from, e.to])]), links };
+}
+
+function drawOverview() {
+  const { keep, links } = overviewNow();
+  const focus = state.hover ?? state.chosen;
+  const near = focus == null ? [] : links.filter((e) => e.from === focus || e.to === focus).flatMap((e) => [e.from, e.to]);
+  let out = defs();
+  for (const e of links) {
+    const [cls, op, marker] = linkStyle(focus, e.from, e.to);
+    const w = 0.8 + Math.log(e.calls + 1) * 0.7;
+    out += `<path d="${arc([files[e.from].x, files[e.from].y], [files[e.to].x, files[e.to].y])}" fill="none" class="${cls}" stroke-width="${w}" opacity="${op}" ${marker ? `marker-end="${marker}"` : ""}/>`;
+  }
+  files.forEach((f, i) => {
+    if (!keep.has(i)) return;
+    const r = radius(f.symbols), touched = changed.includes(i), picked = state.chosen === i;
+    const ring = picked ? "stroke-ink" : touched ? "stroke-accent-amber-bright" : f.test ? "stroke-accent-emerald-bright" : "stroke-canvas";
+    const faded = focus != null && focus !== i && !near.includes(i);
+    const name = f.path.split("/").pop();
+    out += `<g data-file="${i}" class="cursor-pointer" opacity="${faded ? 0.22 : 1}"><circle cx="${f.x}" cy="${f.y}" r="${r}" class="${GROUP_FILLS[f.group]} ${ring}" stroke-width="${picked ? 3 : touched ? 2.5 : 1.5}"/><text x="${f.x}" y="${f.y + r + 12}" text-anchor="middle" class="${focus === i ? "fill-ink" : "fill-muted"} ${HALO}" stroke-width="3" font-size="10">${name}</text></g>`;
+  });
+  canvas.setAttribute("viewBox", "60 100 900 520");
+  canvas.innerHTML = out;
+}
+
+function drawFocus() {
+  const v = views[state.focus];
+  const NODE_W = 236, NODE_H = 40, ROW = 52, TOP = 36, LEFT_X = 12, CENTRE_X = (900 - NODE_W) / 2, RIGHT_X = 900 - NODE_W - 12;
+  const rows = Math.max(v.callers.length, v.callees.length, 1), colH = rows * ROW;
+  const column = (nodes, x) => nodes.map((n, i) => [x, TOP + (colH - nodes.length * ROW) / 2 + i * ROW, n]);
+  const cy = TOP + (colH - ROW) / 2;
+  const left = column(v.callers, LEFT_X), right = column(v.callees, RIGHT_X);
+  const edgeClass = (n) => (n[4] ? "stroke-accent-emerald" : n[3] === "exact" ? "stroke-accent-cyan" : "stroke-accent-indigo");
+  const dash = (n) => (n[3] === "exact" ? "none" : n[3] === "likely" ? "6 4" : "2 4");
+  let out = `<text x="${LEFT_X}" y="16" class="fill-dim" font-size="10">CALLED BY (${v.callers.length})</text><text x="${CENTRE_X}" y="16" class="fill-dim" font-size="10">FOCUS</text><text x="${RIGHT_X}" y="16" class="fill-dim" font-size="10">CALLS (${v.callees.length}${v.outside ? `, +${v.outside} OUTSIDE` : ""})</text>`;
+  for (const [x, y, n] of left) out += `<path d="${elbow([x + NODE_W, y + NODE_H / 2], [CENTRE_X, cy + NODE_H / 2])}" class="${edgeClass(n)}" fill="none" stroke-width="1.5" stroke-dasharray="${dash(n)}" opacity="0.8"/>`;
+  for (const [x, y, n] of right) out += `<path d="${elbow([CENTRE_X + NODE_W, cy + NODE_H / 2], [x, y + NODE_H / 2])}" class="${edgeClass(n)}" fill="none" stroke-width="1.5" stroke-dasharray="${dash(n)}" opacity="0.8"/>`;
+  [...left, ...right].forEach(([x, y, n]) => {
+    out += `<g data-node="${n[0]}" class="cursor-pointer"><rect x="${x}" y="${y}" width="${NODE_W}" height="${NODE_H}" rx="5" class="${n[4] ? "fill-panel stroke-accent-emerald" : "fill-panel stroke-hairline"} transition hover:stroke-accent-cyan" stroke-width="1"/><text x="${x + 10}" y="${y + 17}" class="${n[4] ? "fill-accent-emerald-bright" : "fill-ink"}" font-size="11.5">${n[0]}</text><text x="${x + 10}" y="${y + 31}" class="fill-dim" font-size="9.5">${n[1]}:${n[2]}</text></g>`;
+  });
+  out += `<g><rect x="${CENTRE_X}" y="${cy}" width="${NODE_W}" height="${NODE_H}" rx="6" class="fill-accent-indigo/15 stroke-accent-indigo-bright" stroke-width="1.5"/><text x="${CENTRE_X + 10}" y="${cy + 17}" class="fill-ink" font-size="12" font-weight="700">${state.focus}</text><text x="${CENTRE_X + 10}" y="${cy + 31}" class="fill-muted" font-size="9.5">${v.path}:${v.start}</text></g>`;
+  const hovered = [...left, ...right].find(([, , n]) => n[0] === state.hoverNode);
+  if (hovered) {
+    const [x, y, n] = hovered, CARD_W = 360, lines = [...(signatures[n[0]] ? [signatures[n[0]]] : []), `${n[1]}:${n[2]} · ${n[3] === "likely" ? "likely" : "exact"}`];
+    const h = 30 + lines.length * 15, cx = Math.min(Math.max(x, 0), 900 - CARD_W);
+    out += `<g class="pointer-events-none"><rect x="${cx}" y="${y + NODE_H + 6}" width="${CARD_W}" height="${h}" rx="6" class="fill-elevated stroke-hairline" stroke-width="1"/><text x="${cx + 12}" y="${y + NODE_H + 25}" class="fill-ink" font-size="11.5" font-weight="600">${n[0]}</text>${lines.map((l, i) => `<text x="${cx + 12}" y="${y + NODE_H + 42 + i * 15}" class="fill-muted" font-size="10">${l.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>`).join("")}</g>`;
+  }
+  canvas.setAttribute("viewBox", "-6 0 912 214");
+  canvas.innerHTML = out;
+}
+
+function drawSchema() {
+  const focus = state.table;
+  const near = focus == null ? [] : tableEdges.filter(([a, b]) => a === focus || b === focus).flat();
+  let out = defs();
+  for (const [a, b] of tableEdges) {
+    const [cls, op, marker] = linkStyle(focus, a, b);
+    out += `<path d="${arc([tables[a][2], tables[a][3]], [tables[b][2], tables[b][3]])}" fill="none" class="${cls}" stroke-width="1.3" opacity="${op}" ${marker ? `marker-end="${marker}"` : ""}/>`;
+  }
+  tables.forEach(([name, cols, x, y], i) => {
+    const r = radius(cols), sel = focus === i, faded = focus != null && !sel && !near.includes(i);
+    out += `<g data-table="${i}" class="cursor-pointer" opacity="${faded ? 0.22 : 1}"><circle cx="${x}" cy="${y}" r="${r}" class="fill-accent-cyan ${sel ? "stroke-ink" : "stroke-canvas"}" stroke-width="${sel ? 3 : 1.5}"/><text x="${x}" y="${y + r + 12}" text-anchor="middle" class="${sel ? "fill-ink" : "fill-muted"} ${HALO}" stroke-width="3" font-size="10">${name}</text></g>`;
+  });
+  canvas.setAttribute("viewBox", "160 100 640 360");
+  canvas.innerHTML = out;
+}
+
+function renderHeader() {
+  const narrowing = state.scope === "changed";
+  $("scope").style.display = state.schema ? "none" : "";
+  $("b-changed").className = narrowing ? ON_AMBER : OFF;
+  $("b-project").className = narrowing ? OFF : ON;
+  $("b-code").className = state.schema ? OFF : ON;
+  $("b-schema").className = state.schema ? ON : OFF;
+  $("b-whole").style.display = state.focus && !state.schema ? "" : "none";
+  const { keep, links } = overviewNow();
+  $("caption").textContent = state.schema ? `${tables.length} tables · ${tableEdges.length} foreign key links · 1 schema` : `${keep.size} files · ${links.length} links between them`;
+  $("t-left").title = state.schema ? "Hide the table list" : "Hide the symbol list";
+  $("t-right").style.display = (state.focus && !state.schema) || (state.schema && state.table != null) ? "" : "none";
+}
+
+function symbolRow(kind, name, path, line, on) {
+  return `<button type="button" data-sym="${name}" class="${on ? "flex w-full flex-col items-start gap-0.5 border-l-2 border-accent-indigo bg-accent-indigo/10 py-1.5 pr-3 pl-2.5 text-left" : "flex w-full cursor-pointer flex-col items-start gap-0.5 border-l-2 border-transparent py-1.5 pr-3 pl-2.5 text-left transition hover:bg-hover"}"><span class="flex w-full min-w-0 items-center gap-1.5"><span class="shrink-0 font-mono text-app-3xs text-dim uppercase">${kind}</span><span class="truncate font-mono text-app-xs text-ink">${name}</span></span><span class="w-full truncate font-mono text-app-3xs text-muted">${path}:${line}</span></button>`;
+}
+function renderLeft(query = "") {
+  const left = $("left");
+  if (state.schema) {
+    left.innerHTML = `<div class="flex h-10 shrink-0 items-center gap-2 border-b border-hairline px-3">${icon("size-3.5 shrink-0 text-dim", GLYPH.search)}<span class="min-w-0 grow font-mono text-app-xs text-dim">Find a table…</span></div>
+      <div class="min-h-0 grow overflow-y-auto py-1"><p class="px-3 pt-1 pb-1.5 font-mono text-app-3xs text-dim"><span class="text-accent-cyan-bright">cyan</span> references · <span class="text-accent-amber-bright">amber</span> referenced by</p><div class="pb-2"><div class="flex items-center gap-2 px-3 py-1 font-mono text-app-3xs text-dim"><span class="size-2 shrink-0 rounded-full bg-accent-cyan"></span><span class="truncate">migrations</span></div>
+      ${tables.map((t, i) => [t, i]).sort(([a], [b]) => a[0].localeCompare(b[0])).map(([[name, cols], i]) => `<button type="button" data-tablerow="${i}" class="${state.table === i ? "flex w-full items-center justify-between gap-2 border-l-2 border-accent-indigo bg-accent-indigo/10 py-1 pr-3 pl-2.5 text-left" : "flex w-full cursor-pointer items-center justify-between gap-2 border-l-2 border-transparent py-1 pr-3 pl-2.5 text-left transition hover:bg-hover"}"><span class="truncate font-mono text-app-xs text-ink">${name}</span><span class="shrink-0 font-mono text-app-3xs text-dim">${cols}</span></button>`).join("")}</div></div>`;
+    return;
+  }
+  const search = `<div class="flex h-10 shrink-0 items-center gap-2 border-b border-hairline px-3">${icon("size-3.5 shrink-0 text-dim", GLYPH.search)}<span id="q" class="min-w-0 grow font-mono text-app-xs ${query ? "text-ink" : "text-dim"}">${query || "Find a function, method or type…"}</span></div>`;
+  let body;
+  if (state.focus || query) {
+    const hits = query ? [["fn", "should_retry", "src/webhooks/retry.rs", 14], ["fn", "should_retry_after", "src/webhooks/retry.rs", 33]] : [];
+    body = hits.map(([k, n, p, l]) => symbolRow(k, n, p, l, state.focus === n)).join("") || symbolRow("fn", state.focus, views[state.focus].path, views[state.focus].start, true);
+  } else if (state.chosen != null) {
+    const path = files[state.chosen].path, syms = fileSymbols[path] || [];
+    body = `<div class="flex items-center justify-between gap-2 px-3 py-1.5"><span class="truncate font-mono text-app-2xs text-ink">${path}</span><button type="button" class="shrink-0 cursor-pointer font-mono text-app-3xs text-muted hover:text-ink">Clear</button></div>
+      <p class="px-3 pb-1.5 font-mono text-app-3xs text-dim"><span class="text-accent-cyan-bright">cyan</span> calls out · <span class="text-accent-amber-bright">amber</span> calls in</p>${syms.map(([k, n, l]) => symbolRow(k, n, path, l, false)).join("")}`;
+  } else {
+    body = `<p class="px-3 py-2 text-app-2xs text-dim">Name a symbol to see who calls it, what it calls, and the tests that reach it.</p><p class="px-3 pt-2 text-app-2xs text-dim">Or click a file in the drawing to list what it defines.</p>
+      <ul class="flex flex-col gap-1 px-3 pt-3">${groups.map((g, i) => `<li class="flex items-center gap-2 font-mono text-app-2xs text-muted"><span class="size-2 shrink-0 rounded-full ${GROUP_DOTS[i]}"></span>${g}</li>`).join("")}</ul>`;
+  }
+  left.innerHTML = search + `<div class="min-h-0 grow overflow-y-auto py-1">${body}</div>`;
+}
+
+function renderKey() {
+  const key = $("key");
+  if (state.focus && !state.schema) {
+    key.innerHTML = `<span class="px-1 pb-1 text-app-3xs tracking-wider text-dim uppercase">Call certainty</span>${[["exact", "stroke-accent-cyan", "none"], ["likely", "stroke-accent-indigo", "6 4"], ["by name", "stroke-dim", "2 4"], ["test", "stroke-accent-emerald", "none"]].map(([l, c, d]) => `<div class="flex items-center gap-2 px-1 py-0.5 text-muted"><svg class="shrink-0" width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" class="${c}" stroke-width="2" stroke-dasharray="${d}"/></svg>${l}</div>`).join("")}`;
+    return;
+  }
+  const heading = state.schema ? "Schemas" : "Folders";
+  const { keep } = overviewNow();
+  const rows = state.schema ? [["migrations", tables.length, "bg-accent-cyan"]] : groups.map((g, i) => [g, files.filter((f, at) => f.group === i && keep.has(at)).length, GROUP_DOTS[i]]);
+  key.innerHTML = `<span class="px-1 pb-1 text-app-3xs tracking-wider text-dim uppercase">${heading} · click to hide</span>${rows.map(([n, c, dot]) => `<button type="button" class="flex w-full cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-left text-muted transition hover:bg-hover hover:text-ink"><span class="size-2 shrink-0 rounded-full ${dot}"></span><span class="min-w-0 grow truncate">${n}</span><span class="shrink-0 text-dim tabular-nums">${c}</span></button>`).join("")}`;
+}
+
+function renderTrail() {
+  const nav = $("trail");
+  nav.style.display = state.focus && !state.schema ? "" : "none";
+  if (!state.focus) return;
+  nav.innerHTML = `<button type="button" class="cursor-pointer rounded px-1 text-muted transition hover:bg-hover hover:text-ink">Project</button>${state.trail.map((n) => `<span class="flex items-center gap-1">›<button type="button" class="max-w-48 cursor-pointer truncate rounded px-1 text-muted transition hover:bg-hover hover:text-ink">${n}</button></span>`).join("")}<span>›</span><span class="max-w-56 truncate px-1 font-semibold text-ink">${state.focus}</span>`;
+}
+
+function renderRight() {
+  const right = $("right");
+  if (state.schema && state.table != null) {
+    const [name] = tables[state.table];
+    const cols = { deliveries: [["id", "bigint", "PK", "not null"], ["webhook_id", "bigint", "FK", "not null"], ["status", "smallint", "", "not null"], ["attempts", "int", "", "not null = 0"], ["last_error", "text", "", "null"], ["created_at", "timestamptz", "", "not null = now()"]] }[name] || [];
+    right.style.display = "";
+    right.innerHTML = `<div class="flex flex-col gap-0.5 border-b border-hairline p-3"><span class="font-mono text-app-sm font-bold text-ink break-all">${name}</span><span class="font-mono text-app-3xs text-dim">migrations</span></div>
+      <div class="min-h-0 grow overflow-y-auto pb-3 text-app-2xs"><h3 class="px-3 pt-3 pb-1 font-mono text-app-3xs tracking-wide text-dim uppercase">Columns (${cols.length})</h3>
+      <table class="w-full font-mono text-app-3xs"><tbody>${cols.map(([c, k, key, n]) => `<tr class="align-top"><td class="py-0.5 pr-2 pl-3 text-ink break-all">${c}${key === "PK" ? '<span class="ml-1 text-accent-amber-bright">PK</span>' : key === "FK" ? '<span class="ml-1 text-accent-cyan-bright">FK</span>' : ""}</td><td class="py-0.5 pr-2 text-muted break-all">${k}</td><td class="py-0.5 pr-3 text-dim">${n}</td></tr>`).join("")}</tbody></table>
+      <h3 class="px-3 pt-3 pb-1 font-mono text-app-3xs tracking-wide text-dim uppercase">References</h3><ul class="flex flex-col gap-0.5 px-3 font-mono text-app-3xs text-muted"><li>(webhook_id) → <button type="button" class="cursor-pointer font-mono text-accent-cyan transition hover:text-accent-cyan-bright">webhooks</button>(id)</li></ul>
+      <h3 class="px-3 pt-3 pb-1 font-mono text-app-3xs tracking-wide text-dim uppercase">Referenced by</h3><ul class="flex flex-col gap-0.5 px-3 font-mono text-app-3xs text-muted"><li><button type="button" class="cursor-pointer font-mono text-accent-cyan transition hover:text-accent-cyan-bright">delivery_attempts</button>(delivery_id)</li></ul>
+      <h3 class="px-3 pt-3 pb-1 font-mono text-app-3xs tracking-wide text-dim uppercase">Indexes</h3><ul class="flex flex-col gap-0.5 px-3 font-mono text-app-3xs text-muted"><li>deliveries_webhook_id_idx (webhook_id)</li></ul>
+      <h3 class="px-3 pt-3 pb-1 font-mono text-app-3xs tracking-wide text-dim uppercase">Used in code (2)</h3><ul class="flex flex-col gap-1.5 px-3 font-mono text-app-3xs">${[["src/db/deliveries.rs:12", "record_delivery", "webhook_id, status, attempts"], ["src/db/deliveries.rs:40", "failed_deliveries", "status, last_error"]].map(([at, caller, columns]) => `<li class="flex flex-col"><button type="button" class="cursor-pointer font-mono text-accent-cyan transition hover:text-accent-cyan-bright self-start text-left break-all">${at}</button><button type="button" class="cursor-pointer self-start text-left text-ink transition hover:text-accent-indigo-bright">in ${caller}</button><span class="text-dim">columns: ${columns}</span></li>`).join("")}</ul>
+      <h3 class="px-3 pt-3 pb-1 font-mono text-app-3xs tracking-wide text-dim uppercase">History</h3><ul class="flex flex-col gap-0.5 px-3 font-mono text-app-3xs text-muted"><li>created <button type="button" class="cursor-pointer font-mono text-accent-cyan transition hover:text-accent-cyan-bright break-all text-left">migrations/0003_deliveries.sql:1</button></li></ul></div>`;
+    return;
+  }
+  if (!state.focus || state.schema) { right.style.display = "none"; return; }
+  const v = views[state.focus];
+  right.style.display = "";
+  right.innerHTML = `<div class="flex flex-col gap-2 border-b border-hairline p-3"><code class="block font-mono text-app-2xs break-all text-ink">${v.sig.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</code>
+    <button type="button" class="flex cursor-pointer items-center gap-1 self-start font-mono text-app-2xs text-accent-cyan transition hover:text-accent-cyan-bright">${v.path}:${v.start}–${v.end}${icon("size-3", GLYPH.external)}</button>
+    <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-app-2xs"><dt class="text-dim">Callers</dt><dd class="text-ink">${v.callers.length}</dd><dt class="text-dim">Calls</dt><dd class="text-ink">${v.callees.length} in the project, ${v.outside} outside</dd><dt class="text-dim">Tests</dt><dd class="text-accent-emerald-bright">${v.tests.length} within 3 caller hops</dd></dl>
+    <ul class="flex flex-col gap-1">${v.tests.map(([t, via]) => `<li class="font-mono text-app-3xs text-muted"><span class="text-accent-emerald-bright">${t}</span>${via ? ` via ${via}` : ""}</li>`).join("")}</ul></div>
+    <div class="min-h-0 grow overflow-auto bg-well py-2"><pre class="font-mono text-app-2xs leading-relaxed">${v.code.map((l, i) => `<div class="flex"><span class="w-10 shrink-0 pr-2 text-right text-dim select-none">${v.start + i}</span><span class="pr-3 whitespace-pre text-ink/90">${l.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span></div>`).join("")}<div class="px-3 pt-1 text-dim">… the rest is in the file</div></pre></div>`;
+}
+
+function render(query) {
+  renderHeader();
+  renderLeft(query);
+  renderKey();
+  renderTrail();
+  renderRight();
+  if (state.schema) drawSchema();
+  else if (state.focus) drawFocus();
+  else drawOverview();
+}
+
+const q = (sel) => document.querySelector(sel);
+async function play(id) {
+  Object.assign(state, { scope: "changed", schema: false, hover: null, chosen: null, focus: null, trail: [], hoverNode: null, table: null });
+  render();
+  await sleep(1600); alive(id);
+
+  const retry = at("retry.rs");
+  await pointTo(q(`[data-file="${retry}"] circle`), id);
+  state.hover = retry; render(); await sleep(1600); alive(id);
+  await click(q(`[data-file="${retry}"] circle`), id);
+  state.hover = null; state.chosen = retry; render(); await sleep(1800); alive(id);
+
+  await click($("b-project"), id);
+  state.scope = "project"; render(); await sleep(2200); alive(id);
+
+  await pointTo(q("#left .h-10"), id, 0.4);
+  let typed = "";
+  for (const ch of "should_retry") { typed += ch; render(typed); await sleep(60); alive(id); }
+  await sleep(500); alive(id);
+  await click(q('[data-sym="should_retry"]'), id);
+  state.focus = "should_retry"; render("should_retry"); await sleep(2200); alive(id);
+
+  await pointTo(q('[data-node="parse_header"] rect'), id);
+  state.hoverNode = "parse_header"; render("should_retry"); await sleep(2000); alive(id);
+  state.hoverNode = null;
+  await click(q('[data-node="send_webhook"] rect'), id);
+  state.trail = ["should_retry"]; state.focus = "send_webhook"; render("should_retry"); await sleep(2600); alive(id);
+
+  await click($("b-schema"), id);
+  state.schema = true; render("should_retry"); await sleep(1400); alive(id);
+  await click(q('[data-table="2"] circle'), id);
+  state.table = 2; render("should_retry"); await sleep(3200); alive(id);
+
+  await click($("b-code"), id);
+}
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

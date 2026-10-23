@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(1200px 600px at 50% -10%, rgb(99 102 241 / 0.18), transparent 60%), var(--koda-well);
+    font-family: var(--font-sans);
+    color: var(--koda-ink);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .stage { width: 1280px; height: 780px; transform-origin: center; flex-shrink: 0; }
+  .window {
+    width: 100%; height: 100%; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--koda-hairline);
+    box-shadow: 0 30px 80px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.03);
+    display: flex; flex-direction: column; background: var(--koda-canvas);
+  }
+  .titlebar { height: 28px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--koda-well); border-bottom: 1px solid var(--koda-hairline); }
+  .titlebar i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .app { flex: 1; min-height: 0; }
+  .app > main { height: 100% !important; }
+  .enter { animation: enter .35s ease-out both; }
+  @keyframes enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .caret::after { content: ""; display: inline-block; width: 7px; height: 13px; margin-left: 1px; vertical-align: -2px; background: var(--koda-accent-indigo-bright); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .press { transform: scale(0.94); filter: brightness(1.3); transition: transform .12s, filter .12s; }
+  #prompt { min-height: 22px; }
+  .dot-step { position: absolute; top: 9px; left: -17px; }
+  .koda-border { --anim-intensity: 1; }
+  .controls { position: fixed; top: 14px; right: 16px; display: flex; gap: 8px; z-index: 10; }
+  .controls button { font: 12px var(--font-mono); color: var(--koda-muted); background: var(--koda-subtle); border: 1px solid var(--koda-hairline); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .controls button:hover { color: var(--koda-ink); }
+  .mode { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; z-index: 10; font: 12px var(--font-mono); color: var(--koda-muted); }
+  .mode .seg { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--koda-hairline); border-radius: 8px; background: var(--koda-canvas); }
+  .mode button { font: inherit; color: var(--koda-dim); background: none; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .mode button[aria-pressed="true"] { color: var(--koda-ink); background: var(--koda-elevated); }
+  .kw { color: var(--koda-accent-purple-bright); }
+  .ty { color: var(--koda-accent-amber-bright); }
+  .st { color: var(--koda-accent-emerald-bright); }
+  .fn { color: var(--koda-accent-cyan-bright); }
+</style>
+</head>
+<body>
+<div class="controls">
+  <button id="theme-toggle" type="button">Light</button>
+  <button id="replay" type="button">Replay</button>
+</div>
+<div class="mode">
+  <span>Changes inside the project</span>
+  <div class="seg">
+    <button id="mode-ask" type="button" aria-pressed="true">Ask before each</button>
+    <button id="mode-apply" type="button" aria-pressed="false">Apply directly</button>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+<div class="window">
+<div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+<div class="app">
+<main class="relative grid h-screen w-full grid-rows-[44px_minmax(0,1fr)_24px] overflow-hidden bg-canvas">
+
+  <header class="relative z-30 flex h-11 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-3">
+    <div class="flex min-w-[280px] shrink-0 items-center gap-2.5">
+      <div class="flex items-center gap-1.5">
+        <img src="../assets/icon.svg" alt="" class="size-5 shrink-0 rounded">
+        <span class="font-mono text-app-xs font-semibold tracking-widest text-ink uppercase">Koda</span>
+        <span class="font-mono text-app-3xs text-muted">v0.1.0</span>
+      </div>
+      <span class="text-dim/60">|</span>
+      <div class="relative">
+        <button type="button" aria-label="Switch project" title="acme-api" class="flex cursor-pointer items-center gap-1.5 rounded border border-hairline bg-subtle px-2 py-0.5 font-mono text-app-2xs font-medium text-ink transition hover:bg-hover">
+          <svg class="size-3 shrink-0 text-accent-amber-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <span class="max-w-[160px] truncate">acme-api</span>
+          <span class="rounded border border-accent-cyan/40 bg-accent-cyan/10 px-1 text-app-3xs font-semibold tracking-wide text-accent-cyan-bright uppercase">host</span>
+          <svg class="ml-0.5 size-2.5 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+      </div>
+      <div class="hidden items-center gap-1 font-mono text-app-2xs text-muted xl:flex">
+        <span id="git-dot" class="size-1.5 rounded-full bg-accent-amber" title="1 uncommitted changes" style="display:none"></span>
+        <span class="font-medium text-ink/80">git:(<span class="text-accent-purple-bright">main</span>)</span>
+        <span>acme-api</span>
+      </div>
+    </div>
+
+    <div class="flex min-w-0 flex-1 items-center justify-center gap-2">
+      <div class="relative">
+        <button type="button" aria-label="Model for the next message" class="flex cursor-pointer items-center gap-1.5 rounded border border-hairline bg-subtle px-2.5 py-1 font-mono text-app-2xs transition hover:bg-hover">
+          <span class="text-dim">model</span>
+          <span class="max-w-56 truncate font-semibold text-ink">claude-sonnet-5-5</span>
+          <span class="text-accent-cyan-bright">project</span>
+          <svg class="size-2.5 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+      </div>
+      <span class="flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-app-2xs border-hairline bg-subtle text-ink/80">
+        <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>
+        Default agent
+      </span>
+      <div role="radiogroup" aria-label="Plan first" class="grid shrink-0 grid-cols-2 gap-0.5 rounded-md border border-hairline bg-canvas p-0.5 font-mono text-app-2xs">
+        <button type="button" role="radio" aria-checked="true" class="cursor-pointer rounded bg-elevated px-2.5 py-0.5 text-ink disabled:cursor-not-allowed">Build</button>
+        <button type="button" role="radio" aria-checked="false" class="cursor-pointer rounded px-2.5 py-0.5 text-dim transition hover:text-muted disabled:cursor-not-allowed disabled:opacity-60">Plan</button>
+      </div>
+    </div>
+
+    <div class="flex min-w-[280px] shrink-0 items-center justify-end gap-2">
+      <button type="button" aria-label="Tool calls in this session" class="flex cursor-pointer items-center gap-1 rounded border border-hairline bg-subtle px-2.5 py-1 font-mono text-app-2xs text-ink/80 transition hover:bg-hover">
+        <span class="text-muted">Tool calls</span><span id="toolcount" class="font-bold text-accent-cyan-bright">(0)</span>
+      </button>
+      <div id="status" role="status"></div>
+      <button id="stop" type="button" aria-label="Stop session" title="Stop session" disabled class="flex cursor-not-allowed items-center gap-1 rounded border border-hairline bg-subtle/50 px-2.5 py-1 text-app-xs text-dim opacity-60">
+        <svg class="size-3 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Stop</span>
+      </button>
+      <button type="button" aria-label="New session" title="New session (⌘N)" class="flex cursor-pointer items-center gap-1 rounded border border-accent-cyan/45 bg-accent-cyan/10 px-2.5 py-1 font-mono text-app-2xs font-medium text-accent-cyan-bright transition hover:border-accent-cyan hover:bg-accent-cyan/18">
+        <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>New session
+      </button>
+      <button type="button" aria-label="Hide the file panel" aria-pressed="true" title="Hide the file panel (⌘B)" class="flex size-7 cursor-pointer items-center justify-center rounded text-ink transition hover:bg-hover"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M9 3v18"/></svg></button>
+      <button type="button" aria-label="Hide the inspector" aria-pressed="true" title="Hide the inspector (⌥⌘B)" class="flex size-7 cursor-pointer items-center justify-center rounded text-ink transition hover:bg-hover"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M15 3v18"/></svg></button>
+      <button type="button" aria-label="Settings" title="Settings" class="flex shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted transition hover:bg-hover hover:text-ink size-7 rounded"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-x-auto" style="grid-template-columns: 230px minmax(360px,1fr) 307px">
+    <aside class="flex h-full w-full min-w-0 flex-col border-r border-hairline bg-panel">
+      <div class="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-hairline px-3 font-mono text-app-2xs tracking-wider text-muted">
+        <span class="font-bold text-ink/80 uppercase">Project Tree</span>
+        <span class="min-w-0 truncate">acme-api</span>
+      </div>
+      <div class="border-b border-hairline p-2">
+        <div class="relative flex items-center">
+          <svg class="pointer-events-none absolute left-2 size-3.5 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.3-4.3"/><path d="M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/></svg>
+          <input type="text" aria-label="Filter files" placeholder="Filter files (⌘P)..." class="w-full rounded border border-hairline bg-subtle py-1 pr-8 pl-7 font-mono text-app-xs text-ink outline-none placeholder:text-muted focus:border-accent-cyan" tabindex="-1">
+          <button type="button" aria-label="Show hidden files" aria-pressed="false" title="Show files and folders whose names start with a dot, like .koda and .env" class="absolute right-1 flex size-5 cursor-pointer items-center justify-center rounded text-dim transition hover:bg-hover hover:text-muted"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg></button>
+        </div>
+      </div>
+      <div id="tree" class="flex min-h-0 grow flex-col gap-(--koda-row-gap) overflow-y-auto py-2 font-mono text-app-xs"></div>
+      <div class="shrink-0 border-t border-hairline bg-well p-2.5">
+        <div class="mb-2 flex items-center justify-between font-mono text-app-3xs font-semibold tracking-wider text-muted uppercase"><span>Agents</span><span class="text-accent-cyan-bright">0 active</span></div>
+        <div class="flex max-h-40 flex-col gap-1.5 overflow-y-auto font-mono text-app-2xs"><div id="dock-main" class="contents"></div><span class="px-1.5 py-1 text-dim">No subagents delegated</span></div>
+      </div>
+    </aside>
+
+    <section class="relative flex min-w-0 flex-col overflow-hidden bg-canvas">
+      <header id="tabs" class="flex h-(--koda-tab-h) shrink-0 items-center gap-1.5 border-b border-hairline bg-well px-2" style="display:none">
+        <button type="button" title="Scroll tabs left" aria-label="Scroll tabs left" class="flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 19-7-7 7-7"/></svg></button>
+        <div class="koda-no-scrollbar flex h-full min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+          <div class="flex h-full shrink-0 items-center gap-1 border-t-2 border-t-transparent px-2 font-mono text-app-2xs text-muted transition hover:bg-subtle">
+            <button type="button" class="flex cursor-pointer items-center gap-1.5 truncate">
+              <svg class="size-3 shrink-0 text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg><span class="truncate">parser.rs</span>
+            </button>
+            <span id="tab-review" class="flex size-4 shrink-0 items-center justify-center" title="A change to this file is waiting for your decision. Accept or reject it first."><span class="size-1.5 rounded-full bg-accent-amber"></span></span>
+            <button id="tab-close" type="button" title="Close tab" class="flex size-4 shrink-0 cursor-pointer items-center justify-center rounded text-dim transition hover:bg-hover hover:text-ink" style="display:none"><svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+          </div>
+        </div>
+        <button type="button" title="Scroll tabs right" aria-label="Scroll tabs right" class="flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></button>
+      </header>
+
+      <section id="file-view" class="flex min-h-0 grow flex-col overflow-hidden bg-canvas" style="display:none">
+        <div class="flex h-6 shrink-0 select-none items-center justify-between gap-3 border-b border-hairline-soft bg-canvas/60 px-4 font-mono text-app-2xs text-dim">
+          <div class="flex min-w-0 items-center gap-1.5">
+            <span class="truncate hover:text-muted">src</span>
+            <svg class="size-3 shrink-0 -rotate-90 text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            <span class="flex min-w-0 items-center gap-1 font-medium text-ink">
+              <svg class="size-3 shrink-0 text-accent-indigo-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>
+              <span class="truncate">parser.rs</span>
+            </span>
+          </div>
+          <div class="flex shrink-0 items-center gap-2"><span>Rust</span><span>UTF-8</span></div>
+        </div>
+        <div class="relative min-h-0 grow overflow-auto overflow-anchor-none px-4 py-2 font-mono text-code-editor">
+          <div class="absolute top-3 right-4 z-10 flex items-center gap-1.5 rounded-full bg-accent-indigo/15 px-3 py-1.5 text-app-sm text-accent-indigo-bright">
+            <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>
+            Agent is editing lines 109-110…
+          </div>
+          <div id="code"></div>
+        </div>
+        <section aria-label="Proposed change" class="shrink-0 border-t border-hairline bg-panel">
+          <header class="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2">
+            <div class="flex min-w-0 items-center gap-2">
+              <svg class="size-[15px] shrink-0 text-accent-indigo-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5v17"/><path d="M18 3.5v17"/><path d="M9.6 8.5h4.8"/><path d="M9.6 12h4.8"/><path d="M9.6 15.5h4.8"/></svg>
+              <span class="truncate text-app-sm font-medium text-ink">Read trailers after the last chunk</span>
+            </div>
+            <span class="shrink-0 font-mono text-app-2xs tabular-nums"><span class="text-accent-emerald-bright">+2</span><span class="text-dim"> </span><span class="text-accent-rose">-1</span></span>
+          </header>
+          <footer class="flex flex-wrap items-center gap-2 border-t border-hairline px-4 py-2">
+            <button id="accept" type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-emerald/40 bg-accent-emerald/10 px-2.5 py-1 text-app-xs font-medium text-accent-emerald-bright transition hover:bg-accent-emerald/20">
+              <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Accept<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">⌘↵</kbd>
+            </button>
+            <button type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-rose/40 bg-accent-rose/10 px-2.5 py-1 text-app-xs font-medium text-accent-rose transition hover:bg-accent-rose/20">
+              <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Reject<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">⌘⌫</kbd>
+            </button>
+            <input type="text" tabindex="-1" placeholder="Optional note sent with a rejection" class="min-w-0 grow rounded border border-hairline bg-canvas px-2 py-1 text-app-xs text-ink outline-none placeholder:text-dim">
+          </footer>
+        </section>
+        <div class="flex h-6 shrink-0 select-none items-center justify-between gap-3 border-t border-hairline bg-well px-3 font-mono text-app-2xs text-dim">
+          <div class="flex min-w-0 items-center gap-2"><span class="truncate">parser.rs</span><span class="text-hairline">·</span><span>Rust</span></div>
+          <div class="flex shrink-0 items-center gap-3"><button type="button" title="Wrap long lines (Alt+Z)" class="cursor-pointer rounded px-1 transition hover:bg-hover hover:text-ink">Wrap: off</button><span>Spaces: 2</span><span>LF</span></div>
+        </div>
+      </section>
+
+      <div id="task-view" class="flex min-h-0 grow flex-col overflow-hidden">
+        <div id="strip" class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4" style="display:none">
+          <div class="flex min-w-0 items-center gap-2"><span id="session-title" class="truncate font-sans text-app-xs text-muted"></span></div>
+          <div class="flex shrink-0 items-center gap-3 font-mono text-app-xs text-muted">
+            <span class="flex items-center gap-1"><svg class="size-3.5 text-accent-cyan-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Plan mode: <strong class="text-ink">OFF</strong></span>
+            <span class="flex cursor-default items-center gap-1.5 rounded px-1.5 py-0.5 transition hover:bg-hover"><strong id="tokens" class="text-accent-cyan-bright"></strong><span class="text-dim">·</span><span>Cache hit <strong id="cache" class="text-ink"></strong></span></span>
+          </div>
+        </div>
+        <div class="flex min-h-0 grow flex-col overflow-hidden">
+          <div id="scroller" class="h-full overflow-y-auto p-4" style="scroll-behavior:smooth">
+            <div id="stream" class="mx-auto flex w-full flex-col gap-3"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="shrink-0 bg-canvas px-3 pt-2 pb-3">
+        <div class="mx-auto w-full max-w-3xl">
+          <div id="dock" class="flex w-full flex-col rounded-lg border border-hairline bg-panel/95 p-2 elevated-shadow backdrop-blur-xl transition focus-within:border-accent-indigo/50">
+            <div class="relative flex items-start gap-2 px-1">
+              <span id="dock-star"></span>
+              <div id="prompt" class="min-w-0 grow py-1 text-app-xs leading-relaxed whitespace-pre-wrap break-words text-dim"></div>
+              <button type="button" aria-label="Attach files" title="Attach files: text is included in the message, a large file is saved for the agent to read" class="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-dim transition hover:bg-hover hover:text-ink"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+              <kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">⌘K</kbd>
+            </div>
+            <div class="mt-1.5 flex items-center justify-between gap-3 border-t border-hairline-soft px-1 pt-1.5 text-app-2xs text-dim">
+              <button id="runs-on" type="button" aria-label="Where this project runs" title="Where this project's commands run, and whether its edits wait for you" class="flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 font-mono transition border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright"></button>
+              <div class="flex shrink-0 items-center gap-2 font-mono">
+                <span id="dock-keys" class="contents"></span>
+                <button id="send" type="button" aria-label="Send" class="flex cursor-pointer items-center gap-1 rounded border border-elevated bg-hover px-2.5 py-1 text-app-xs font-medium text-ink transition hover:bg-elevated">Send<svg class="size-3 text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5.2"/><path d="m5.6 11.6 6.4-6.4 6.4 6.4"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="flex h-full w-full min-w-0 flex-col overflow-hidden border-l border-hairline bg-panel">
+      <section class="shrink-0 border-b border-hairline p-3">
+        <div class="mb-2.5 flex items-center justify-between gap-2 font-mono text-app-xs">
+          <div class="flex min-w-0 items-center gap-1.5 font-bold text-ink"><svg class="size-4 shrink-0 text-accent-cyan-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg><span class="shrink-0">Changed Files</span></div>
+          <div id="changed-totals" class="flex items-center gap-1.5 text-app-2xs font-semibold tabular-nums"></div>
+        </div>
+        <div id="changed" class="flex max-h-48 flex-col gap-1 overflow-y-auto font-mono text-app-2xs"></div>
+      </section>
+      <section class="shrink-0 border-b border-hairline p-3">
+        <div class="mb-2 flex items-center justify-between font-mono text-app-2xs text-ink"><div class="flex items-center gap-1 font-semibold"><svg class="size-3.5 text-accent-purple-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 1 1 3 0m-3 6a1.5 1.5 0 0 0-3 0v2a7.5 7.5 0 0 0 15 0v-5a1.5 1.5 0 0 0-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 0 1 3 0v1m0 0V11m0-5.5a1.5 1.5 0 0 1 3 0v3m0 0V11"/></svg><span>Sub-Agent Delegation Tree</span></div><div class="flex items-center gap-2 text-app-3xs"><span class="text-accent-purple-bright">0 delegated</span><button type="button" aria-label="Manage agents" class="cursor-pointer text-muted transition hover:text-ink">Manage</button></div></div>
+        <div class="flex flex-col gap-2 rounded-md border border-hairline bg-subtle p-2.5 font-mono text-app-2xs"><button type="button" aria-label="Show the main agent" class="flex w-full cursor-pointer items-center gap-1.5 text-left text-ink"><span class="size-2 shrink-0 rounded-full bg-agent-main"></span><span class="font-bold text-agent-main">Main agent</span><span id="tree-phase" class="ml-auto text-app-3xs text-muted">No session</span></button><div class="ml-1 flex flex-col gap-1.5 border-l border-agent-main/40 pl-3"><span class="text-app-3xs text-dim">No delegations yet</span></div></div>
+      </section>
+      <section class="relative shrink-0 border-b border-hairline p-3">
+        <div class="mb-1.5 flex items-center justify-between font-mono text-app-xs">
+          <div class="flex items-center gap-1.5 font-bold text-ink"><svg class="size-3.5 text-accent-purple-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg><span>Context Graph</span></div>
+        </div>
+        <div class="mb-1 flex items-center justify-between font-mono text-app-2xs text-muted">
+          <span class="uppercase">Context Window Capacity</span>
+          <span id="ctx-label" class="font-semibold text-ink tabular-nums"></span>
+        </div>
+        <div class="flex h-2 w-full overflow-hidden rounded-full bg-hover">
+          <div id="ctx-bar" class="h-full bg-linear-to-r from-accent-cyan to-accent-indigo" style="width: 0%; transition: width .6s ease"></div>
+        </div>
+      </section>
+      <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3 font-mono text-app-xs">
+        <div class="mb-2 flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <span class="text-app-3xs font-bold tracking-wider text-muted uppercase">Active semantic graph</span>
+            <span id="graph-count" class="text-app-3xs text-dim">0 changed</span>
+          </div>
+          <div id="graph"><p class="text-app-2xs text-dim">No changed files in the code graph. Changes to its files appear here.</p></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="z-30 flex h-6 shrink-0 items-center justify-between gap-3 border-t border-hairline bg-well px-3 font-mono text-app-2xs text-muted">
+    <div class="flex min-w-0 items-center gap-3">
+      <div class="flex shrink-0 items-center gap-1.5">
+        <span class="size-2 rounded-full bg-accent-emerald"></span>
+        <span id="dirty" class="text-ink/80">0 Dirty Files</span>
+      </div>
+      <div class="flex shrink-0 items-center gap-1 font-semibold tabular-nums">
+        <span id="sb-add" class="text-accent-emerald-bright">+0</span>
+        <span id="sb-rm" class="text-accent-rose">-0</span>
+      </div>
+      <span class="text-dim">|</span>
+      <div class="flex min-w-0 items-center gap-1 text-ink/80">
+        <svg class="size-3 shrink-0 text-accent-cyan-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <span id="sb-doing" class="truncate">acme-api: No session</span>
+      </div>
+    </div>
+    <div class="flex shrink-0 items-center gap-3">
+      <span role="button" aria-pressed="false" title="Terminal (⌃`)" class="flex cursor-pointer items-center gap-1 rounded px-1.5 transition hover:bg-hover hover:text-ink">
+        <svg class="size-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>Terminal
+      </span>
+      <span class="text-dim">|</span>
+      <div class="flex items-center gap-1.5">
+        <span class="size-1.5 rounded-full bg-accent-emerald"></span>
+        <span class="max-w-[320px] truncate">~/dev/acme-api</span>
+        <span class="font-semibold text-ink/80">local</span>
+      </div>
+      <span class="text-dim">|</span>
+      <span>UTF-8</span>
+    </div>
+  </footer>
+</main>
+</div>
+</div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const svg = (cls, paths) =>
+  `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${paths.map((d) => `<path d="${d}"/>`).join("")}</svg>`;
+const G = {
+  arrowUp: ["M12 20V5.2", "m5.6 11.6 6.4-6.4 6.4 6.4"],
+  chevronRight: ["m9 5 7 7-7 7"],
+  sparkle: ["M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z", "M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"],
+  chevronDown: ["m6 9 6 6 6-6"],
+  copy: ["M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z", "M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2"],
+};
+const liveStar = (size) =>
+  `<span class="koda-star relative inline-flex shrink-0 items-center justify-center ${size}"><svg class="animate-sparkle-pulse block size-full" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="${G.sparkle[0]}"/><path d="${G.sparkle[1]}"/></svg></span>`;
+const kbd = (k) => `<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">${k}</kbd>`;
+const node = (html) => {
+  const t = document.createElement("template");
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
+};
+const add = (html, parent = $("stream")) => {
+  const n = node(html);
+  n.classList.add("enter");
+  parent.appendChild(n);
+  $("scroller").scrollTop = $("scroller").scrollHeight;
+  return n;
+};
+const follow = () => ($("scroller").scrollTop = $("scroller").scrollHeight);
+
+let run = 0;
+const alive = (id) => {
+  if (id !== run) throw new Error("restarted");
+};
+
+const chip = (label, tone) => `<span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase ${tone}"><span class="truncate">${label}</span></span>`;
+const AMBER_CHIP = "border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright";
+const PLACEHOLDER = "Message the agent · / for commands · @ for agents · ⌘↵ to send";
+const PROMPT_CLASS = "min-w-0 grow py-1 text-app-xs leading-relaxed whitespace-pre-wrap break-words ";
+
+function setStatus(kind) {
+  const base = "flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-app-2xs font-medium ";
+  const s = $("status");
+  const [dot, tone, label] =
+    kind === "working" ? ["", "", "Working"]
+    : kind === "done" ? ["bg-accent-emerald", "text-accent-emerald-bright", "Finished"]
+    : kind === "waiting" ? ["bg-accent-amber", "text-accent-amber-bright", "Needs approval"]
+    : ["bg-dim", "text-muted", "No task"];
+  s.setAttribute("aria-label", "Run status: " + label);
+  if (kind === "working") {
+    s.className = base + "koda-pulse-glow border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan-bright";
+    s.innerHTML = liveStar("size-3.5") + "<span>Working</span>";
+  } else {
+    s.className = base + "border-hairline bg-subtle " + tone;
+    s.innerHTML = `<span class="inline-block size-1.5 shrink-0 rounded-full ${dot}"></span><span>${label}</span>`;
+  }
+  const live = kind === "working" || kind === "waiting";
+  $("stop").disabled = !live;
+  $("stop").className = live
+    ? "flex cursor-pointer items-center gap-1 rounded border border-hairline bg-subtle px-2.5 py-1 text-app-xs text-ink/80 transition hover:bg-hover hover:text-ink"
+    : "flex cursor-not-allowed items-center gap-1 rounded border border-hairline bg-subtle/50 px-2.5 py-1 text-app-xs text-dim opacity-60";
+  $("tree-phase").textContent = kind === "idle" ? "No session" : label;
+  $("dock-main").innerHTML = kind === "idle" ? "" :
+    `<button type="button" aria-label="Show the main agent" class="flex w-full cursor-pointer items-center justify-between gap-2 rounded border p-1.5 text-left transition border-agent-main/60 bg-hover"><div class="flex min-w-0 items-center gap-1.5"><span class="inline-block size-2 shrink-0 rounded-full bg-agent-main"></span><span class="truncate font-medium text-agent-main">Main agent</span></div><span class="shrink-0 rounded border px-1 text-app-3xs uppercase border-hairline bg-subtle text-muted">${label}</span></button>`;
+  setDock(kind === "working", live);
+}
+
+function setDock(working, cancellable) {
+  $("dock").classList.toggle("koda-border", working);
+  $("dock").classList.toggle("border-mode-conic", working);
+  $("dock-star").innerHTML = working ? liveStar("size-4") : svg("size-4 shrink-0 text-accent-indigo-bright", G.sparkle);
+  $("dock-keys").innerHTML = cancellable
+    ? `<span class="flex items-center gap-1">${kbd("⌘↵")}Steer</span><span class="flex items-center gap-1">${kbd("⇧⌘↵")}Queue</span><span class="flex items-center gap-1">${kbd("Esc")}Cancel</span>`
+    : `<span class="flex items-center gap-1">${kbd("⌘↵")}Send</span><span class="flex items-center gap-1">${kbd("Esc")}Cancel</span>`;
+}
+
+function showPlaceholder() {
+  $("prompt").textContent = PLACEHOLDER;
+  $("prompt").className = PROMPT_CLASS + "text-dim";
+}
+
+const tree = [
+  { d: 0, file: "Cargo.toml" },
+  { d: 0, file: "README.md" },
+  { d: 0, dir: "src", open: true },
+  { d: 1, dir: "http", open: false },
+  { d: 1, file: "main.rs" },
+  { d: 1, file: "parser.rs", id: "tree-parser" },
+  { d: 1, file: "router.rs" },
+  { d: 0, dir: "tests", open: true },
+  { d: 1, file: "chunked.rs" },
+];
+let modified = false;
+function renderTree(active) {
+  const folder = `<svg class="size-3.5 shrink-0 text-accent-amber/80" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z"/></svg>`;
+  $("tree").innerHTML = tree
+    .map((r) => {
+      const indent = 12 + r.d * 16;
+      if (r.dir) return `<button type="button" aria-expanded="${r.open}" class="flex w-full items-center gap-1.5 py-(--koda-row-pad) pr-3 text-left transition cursor-pointer text-muted hover:text-ink" style="padding-left:${indent}px">${svg("size-3 shrink-0 text-muted transition-transform" + (r.open ? " rotate-90" : ""), G.chevronRight)}${folder}<span class="truncate">${r.dir}</span>${r.dir === "src" && modified ? '<span class="ml-auto size-1.5 shrink-0 rounded-full bg-accent-amber" title="Holds uncommitted changes"></span>' : ""}</button>`;
+      const on = r.id && r.id === active, changed = r.id && modified;
+      const mark = changed ? '<span class="ml-auto shrink-0 text-app-2xs font-semibold text-accent-amber-bright" title="modified">M</span>' : "";
+      return on
+        ? `<button id="${r.id}" type="button" aria-current="true" class="flex w-full cursor-pointer items-center gap-2 border-l-2 border-accent-cyan bg-accent-cyan/10 py-(--koda-row-pad) pr-3 text-left font-medium text-accent-cyan-bright" style="padding-left:${indent - 2}px"><span class="shrink-0 text-app-2xs text-accent-cyan-bright">&lt;&gt;</span><span class="truncate">${r.file}</span>${mark}</button>`
+        : `<button ${r.id ? `id="${r.id}"` : ""} type="button" aria-current="false" class="flex w-full cursor-pointer items-center gap-2 py-(--koda-row-pad) pr-3 text-left text-ink/80 transition hover:bg-hover hover:text-ink" style="padding-left:${indent}px"><span class="shrink-0 text-app-2xs text-muted">&lt;&gt;</span><span class="truncate${changed ? " text-accent-amber-bright" : ""}">${r.file}</span>${mark}</button>`;
+    })
+    .join("");
+}
+
+function setTotals(count, add, rm) {
+  $("changed-totals").innerHTML = `<span class="rounded border border-accent-cyan/50 bg-accent-cyan/10 px-1.5 font-bold text-accent-cyan-bright">${count}</span><span class="text-accent-emerald-bright">+${add}</span><span class="text-accent-rose">-${rm}</span>`;
+}
+
+function markModified(add, rm) {
+  modified = true;
+  renderTree(null);
+  $("git-dot").style.display = "";
+  setTotals(1, add, rm);
+  $("changed").innerHTML = `<div class="enter flex items-center justify-between gap-2 rounded p-1 transition hover:bg-hover">
+      <button type="button" title="src/parser.rs · modified · click to see the diff" class="flex min-w-0 grow cursor-pointer items-center gap-1.5 text-left"><span class="size-1.5 shrink-0 rounded-full bg-accent-amber"></span><span class="truncate text-ink/80">src/parser.rs</span></button>
+      <div class="flex shrink-0 items-center gap-2 tabular-nums"><span class="text-accent-emerald-bright">+${add}</span><span class="text-accent-rose">-${rm}</span>
+      <button type="button" title="Keep the changes: stage them" class="cursor-pointer text-accent-cyan-bright transition hover:text-accent-cyan">Keep</button><button type="button" title="Discard the changes: restore the file from HEAD" class="cursor-pointer text-muted transition hover:text-accent-rose">Discard</button></div></div>`;
+  $("graph-count").textContent = "1 changed";
+  $("graph").innerHTML = `<button type="button" title="Show src/parser.rs in the graph" class="enter flex w-full cursor-pointer flex-col gap-1 rounded border border-hairline bg-subtle p-2 text-left transition hover:border-accent-amber/40">
+      <div class="flex items-center justify-between gap-2"><div class="flex min-w-0 items-center gap-1.5 font-medium text-ink"><span class="size-1.5 shrink-0 rounded-full bg-accent-amber"></span><span class="truncate">parser.rs</span></div>
+      <span class="shrink-0 rounded border px-1 text-app-3xs font-bold uppercase border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright">modified</span></div>
+      <p class="truncate text-app-3xs text-muted">6 definitions · calls 11 · used by 3</p></button>`;
+  $("dirty").textContent = "1 Dirty Files";
+  $("sb-add").textContent = "+" + add;
+  $("sb-rm").textContent = "-" + rm;
+}
+
+let calls = 0;
+const bumpCalls = () => ($("toolcount").textContent = `(${++calls})`);
+function setContext(used, tok, cache) {
+  const pct = Math.round((used / 200) * 100);
+  $("ctx-label").innerHTML = `${used.toFixed(1)}k / 200.0k (<span class="text-accent-cyan-bright">${pct}%</span>)`;
+  $("ctx-bar").style.width = pct + "%";
+  $("strip").style.display = "";
+  $("tokens").textContent = tok;
+  $("cache").textContent = cache;
+}
+
+const DOT_RUNNING = "dot-step size-2 rounded-full border border-transparent bg-accent-cyan";
+const lineRow = (html) => `<div class="flex flex-wrap items-baseline gap-x-1"><span class="flex flex-wrap items-baseline gap-x-1">${html}</span></div>`;
+const copyButton = `<button type="button" aria-label="Copy the command" title="Copy the command" class="shrink-0 rounded p-0.5 transition hover:bg-hover hover:text-ink">${svg("size-3.5", G.copy)}</button>`;
+
+function step(timeline, verb, subject, detail = "") {
+  bumpCalls();
+  return add(
+    `<div class="relative scroll-mt-3">
+      <span class="${DOT_RUNNING}"></span>
+      <details class="group/step" open>
+        <summary class="flex w-full min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left font-mono text-app-xs transition hover:bg-subtle cursor-pointer list-none select-none">
+          <span class="min-w-0 grow truncate"><span class="text-muted">${verb} </span><span class="text-ink/90">${subject}</span>${detail ? `<span class="text-dim"> ${detail}</span>` : ""}</span>
+          <span class="flex shrink-0 items-center gap-1.5 text-app-2xs text-dim"><span class="badge contents"></span><span class="count tabular-nums">no result yet</span><span class="chev">${svg("size-3 shrink-0 transition-transform group-open/step:rotate-90", G.chevronRight)}</span></span>
+        </summary>
+        <div class="body flex flex-col gap-1.5 py-1.5 pl-1.5"></div>
+      </details>
+    </div>`,
+    timeline
+  );
+}
+function finishStep(s, count, { exit, unfolds = true } = {}) {
+  s.querySelector(".dot-step").className = exit ? "dot-step size-2 rounded-full border border-transparent bg-accent-amber" : "dot-step size-2 rounded-full border border-dim bg-panel";
+  s.querySelector(".count").textContent = count;
+  if (exit) s.querySelector(".badge").innerHTML = chip(`exit ${exit}`, AMBER_CHIP);
+  s.querySelector("details").open = false;
+  if (!unfolds) {
+    s.querySelector(".chev").remove();
+    s.querySelector(".body").remove();
+  }
+}
+async function streamOutput(s, command, lines, id) {
+  const body = s.querySelector(".body");
+  body.innerHTML = `<div class="flex items-start gap-2 font-mono text-app-2xs text-dim"><span class="min-w-0 grow break-all">$ ${command}</span>${copyButton}</div>
+    <div class="overflow-hidden rounded-md border border-hairline"><div class="out flex flex-col gap-1 border-t border-hairline bg-canvas p-3 font-mono text-code text-muted"></div></div>`;
+  const out = body.querySelector(".out");
+  let n = 0;
+  for (const text of lines) {
+    await sleep(260);
+    alive(id);
+    out.insertAdjacentHTML("beforeend", lineRow(`<span class="text-muted">${text}</span>`));
+    s.querySelector(".count").textContent = ++n === 1 ? "1 line" : `${n} lines`;
+    follow();
+  }
+}
+
+async function typeInto(el, text, speed, id) {
+  for (const ch of text) {
+    alive(id);
+    el.textContent += ch;
+    await sleep(speed + Math.random() * speed);
+  }
+}
+
+async function streamMarkdown(container, blocks, id) {
+  for (const b of blocks) {
+    const n = node(b.html);
+    container.appendChild(n);
+    const target = n.querySelector("[data-stream]") || n;
+    const words = b.text.split(/(\s+)/);
+    target.innerHTML = "";
+    for (const w of words) {
+      alive(id);
+      target.insertAdjacentHTML("beforeend", w.replace(/`([^`]+)`/g, '<code class="rounded bg-subtle px-1 font-mono text-accent-cyan-bright">$1</code>'));
+      follow();
+      await sleep(28);
+    }
+  }
+}
+
+function reset() {
+  calls = 0;
+  modified = false;
+  $("toolcount").textContent = "(0)";
+  $("stream").innerHTML = "";
+  $("changed").innerHTML = '<p class="px-1 text-dim">No changes in this project.</p>';
+  setTotals(0, 0, 0);
+  $("graph-count").textContent = "0 changed";
+  $("graph").innerHTML = '<p class="text-app-2xs text-dim">No changed files in the code graph. Changes to its files appear here.</p>';
+  $("dirty").textContent = "0 Dirty Files";
+  $("sb-add").textContent = "+0";
+  $("sb-rm").textContent = "-0";
+  $("git-dot").style.display = "none";
+  $("strip").style.display = "none";
+  $("session-title").textContent = "";
+  $("sb-doing").textContent = "acme-api: No session";
+  showPlaceholder();
+  $("ctx-label").innerHTML = '— / ? (<span class="text-accent-cyan-bright">0%</span>)';
+  $("ctx-bar").style.width = "0%";
+  renderTree(null);
+  setStatus("idle");
+  $("tabs").style.display = "none";
+  $("file-view").style.display = "none";
+  $("task-view").style.display = "";
+  $("tab-review").style.display = "";
+  $("tab-close").style.display = "none";
+  $("accept").classList.remove("press");
+  $("send").classList.remove("press");
+}
+
+const source = [
+  [104, " ", "impl ChunkReader {"],
+  [105, " ", "    pub fn read_chunk(&mut self, src: &mut impl BufRead) -> Result<Chunk> {"],
+  [106, " ", "        let mut line = String::new();"],
+  [107, " ", "        src.read_line(&mut line)?;"],
+  [108, " ", "        let size = read_hex(&mut line)?;"],
+  [109, "-", "        if line.ends_with(\"\\r\\n\") {"],
+  ["+", "+", "        if size == 0 {"],
+  ["+", "+", "            self.read_trailers(src)?;"],
+  [110, " ", "            return Ok(Chunk::Last);"],
+  [111, " ", "        }"],
+  [112, " ", "        let mut body = vec![0; size];"],
+  [113, " ", "        src.read_exact(&mut body)?;"],
+  [114, " ", "        self.expect_crlf(src)?;"],
+  [115, " ", "        Ok(Chunk::Data(body))"],
+  [116, " ", "    }"],
+  [117, " ", "}"],
+];
+function highlight(text) {
+  const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return esc.replace(/("(?:[^"\\]|\\.)*")|\b(impl|pub|fn|let|mut|if|return|self)\b|\b([A-Z]\w*)\b|\b([a-z_]\w*)(?=\()/g, (m, str, kw, ty, fn) =>
+    str ? `<span class="st">${str}</span>` : kw ? `<span class="kw">${kw}</span>` : ty ? `<span class="ty">${ty}</span>` : `<span class="fn">${fn}</span>`);
+}
+function renderCode() {
+  $("code").innerHTML = source.map(([n, kind, text]) => {
+    const tint = kind === "+" ? "border-diff-add bg-diff-add/12" : kind === "-" ? "border-diff-remove bg-diff-remove/12" : "border-transparent";
+    return `<div class="flex w-max min-w-full gap-4 border-l-2 ${tint}" style="height:20px;line-height:20px"><span class="w-6 shrink-0 text-right text-dim select-none">${n}</span><span class="whitespace-pre text-ink">${highlight(text)}</span></div>`;
+  }).join("");
+}
+
+let mode = "ask";
+function setMode(next) {
+  mode = next;
+  const tone = next === "ask" ? "amber" : "rose", bright = next === "ask" ? "text-accent-amber-bright" : "text-accent-rose";
+  $("runs-on").className = `flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 font-mono transition border-accent-${tone}/35 bg-accent-${tone}/12 ${bright}`;
+  $("runs-on").innerHTML = `<span class="size-1.5 shrink-0 rounded-full bg-accent-${tone}"></span><span class="truncate">Host · ${next === "ask" ? "asks first" : "applies directly"}</span>${svg("size-2.5 shrink-0", G.chevronDown)}`;
+  $("mode-ask").setAttribute("aria-pressed", String(next === "ask"));
+  $("mode-apply").setAttribute("aria-pressed", String(next === "apply"));
+}
+
+const diffRow = (cls, text) => lineRow(`<span class="whitespace-pre-wrap break-all ${cls}">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span>`);
+
+async function play(id) {
+  reset();
+  $("stream").innerHTML = '<p class="text-app-sm text-dim" role="status" aria-label="No session has run yet.">No session has run yet.</p>';
+  await sleep(900);
+  alive(id);
+
+  const prompt = $("prompt");
+  prompt.textContent = "";
+  prompt.className = "caret " + PROMPT_CLASS + "text-ink";
+  await typeInto(prompt, "The chunked body test is failing. Find out why and fix it.", 28, id);
+  await sleep(450);
+  alive(id);
+  $("send").classList.add("press");
+  await sleep(160);
+  alive(id);
+  $("send").classList.remove("press");
+
+  const title = "Fix the failing chunked body test";
+  showPlaceholder();
+  $("stream").innerHTML = "";
+  $("session-title").textContent = title;
+  $("session-title").title = title;
+  $("sb-doing").textContent = "acme-api: " + title;
+  setStatus("working");
+  add(`<div class="flex items-start gap-2 rounded-lg border border-hairline bg-subtle/60 p-3 font-mono text-app-xs font-semibold leading-relaxed text-accent-cyan-bright shadow-sm">
+      ${svg("mt-0.5 size-4 shrink-0", G.arrowUp)}<div class="flex min-w-0 flex-col gap-2"><div class="min-w-0 font-normal"><div class="flex min-w-0 flex-col gap-2 wrap-anywhere"><p class="whitespace-pre-wrap">The chunked body test is failing. Find out why and fix it.</p></div></div></div></div>`);
+  await sleep(700);
+  alive(id);
+
+  add(`<details class="group min-w-0"><summary class="flex min-w-0 cursor-pointer list-none items-center gap-2 text-app-2xs text-dim select-none">
+      <span class="text-app-3xs transition-transform group-open:rotate-90">▶</span><span class="shrink-0 font-medium">Thinking</span>
+      <span class="min-w-0 truncate group-open:hidden">· Run the test first, then read the chunk decoder it exercises.</span></summary></details>`);
+  setContext(8.4, "2.1k tok", "64%");
+  await sleep(800);
+  alive(id);
+
+  const timeline = add(`<div class="relative flex flex-col pl-5"><span class="absolute top-2.5 bottom-2.5 left-[7px] w-px bg-hairline"></span></div>`);
+  let s = step(timeline, "Ran", "cargo test chunked");
+  await streamOutput(s, "cargo test chunked", [
+    "running 4 tests",
+    "test parses_single_chunk ... ok",
+    "test parses_chunked_body_with_trailer ... FAILED",
+    "test result: FAILED. 3 passed; 1 failed",
+  ], id);
+  await sleep(300);
+  alive(id);
+  finishStep(s, "4 lines", { exit: 101 });
+  await sleep(400);
+  alive(id);
+
+  s = step(timeline, "Explored the code:", "read_chunk");
+  await sleep(700);
+  alive(id);
+  finishStep(s, "18 lines");
+  s = step(timeline, "Read", "src/parser.rs", "lines 88–140");
+  setContext(14.9, "6.8k tok", "71%");
+  await sleep(800);
+  alive(id);
+  finishStep(s, "53 lines", { unfolds: false });
+  await sleep(400);
+  alive(id);
+
+  bumpCalls();
+  const ask = mode === "ask";
+  const edit = add(`<article class="flex w-full flex-col overflow-hidden rounded-lg border border-hairline bg-panel transition hover:border-dim/40 scroll-mt-3">
+      <button type="button" aria-label="Open src/parser.rs" class="cursor-pointer text-left transition hover:bg-hover flex items-center justify-between gap-3 p-2.5">
+        <div class="flex min-w-0 flex-1 items-center gap-2.5 font-mono text-app-xs">
+          <span class="shrink-0 font-bold select-none text-accent-cyan-bright">&gt;_</span>
+          <span class="flex min-w-0 items-baseline gap-1.5"><span class="shrink-0 text-ink/80">Edit</span><span class="truncate text-accent-cyan-bright" title="src/parser.rs">src/parser.rs</span></span>
+        </div>
+        <div class="flex shrink-0 items-center gap-1.5 font-mono text-app-2xs text-muted"><span class="state shrink-0 tabular-nums">no result yet</span></div>
+      </button>
+    </article>`);
+  if (ask) {
+    await sleep(500);
+    alive(id);
+    setStatus("waiting");
+    renderCode();
+    renderTree("tree-parser");
+    $("tabs").style.display = "";
+    $("task-view").style.display = "none";
+    $("file-view").style.display = "";
+    await sleep(3000);
+    alive(id);
+    $("accept").classList.add("press");
+    await sleep(220);
+    alive(id);
+    $("tab-review").style.display = "none";
+    $("tab-close").style.display = "";
+    $("file-view").style.display = "none";
+    $("task-view").style.display = "";
+    renderTree(null);
+    setStatus("working");
+  } else {
+    await sleep(900);
+    alive(id);
+  }
+  edit.querySelector(".state").textContent = "+2 −1";
+  edit.insertAdjacentHTML("beforeend", `<div class="flex flex-col gap-1 border-t border-hairline bg-canvas p-3 font-mono text-code text-muted">${[
+    diffRow("text-accent-rose", "-         if line.ends_with(\"\\r\\n\") {"),
+    diffRow("text-accent-emerald-bright", "+         if size == 0 {"),
+    diffRow("text-accent-emerald-bright", "+             self.read_trailers(src)?;"),
+  ].join("")}</div>`);
+  markModified(2, 1);
+  follow();
+  await sleep(700);
+  alive(id);
+
+  const timeline2 = add(`<div class="relative flex flex-col pl-5"><span class="absolute top-2.5 bottom-2.5 left-[7px] w-px bg-hairline"></span></div>`);
+  s = step(timeline2, "Ran", "cargo test chunked");
+  await streamOutput(s, "cargo test chunked", [
+    "running 4 tests",
+    "test parses_chunked_body_with_trailer ... ok",
+    "test result: ok. 4 passed; 0 failed",
+  ], id);
+  finishStep(s, "3 lines");
+  setContext(21.3, "11.6k tok", "82%");
+  await sleep(600);
+  alive(id);
+
+  const answer = add(`<div class="flex flex-col gap-1 rounded-lg border border-hairline bg-panel p-3 font-mono text-app-xs leading-relaxed text-ink"><div class="md flex min-w-0 flex-col gap-2 wrap-anywhere"></div></div>`);
+  await streamMarkdown(answer.querySelector(".md"), [
+    { html: '<h2 class="text-app font-semibold text-ink whitespace-pre-wrap"></h2>', text: "Fixed" },
+    { html: '<p class="whitespace-pre-wrap"></p>', text: "`read_chunk` treated the CRLF after the size line as the end of the body, so a zero-size chunk followed by trailers was never finished. It now checks for the last chunk by size and reads the trailers before returning." },
+    { html: '<ul class="flex flex-col gap-1 pl-5 list-disc"><li class="space-y-1"><p data-stream class="whitespace-pre-wrap"></p></li></ul>', text: "`cargo test chunked` passes (4 of 4)." },
+  ], id);
+  add('<p class="font-mono text-app-2xs text-dim">Finished: fixed trailer handling in the chunk decoder</p>');
+  setStatus("done");
+  await sleep(5000);
+  alive(id);
+  setMode(mode === "ask" ? "apply" : "ask");
+  start();
+}
+
+function start() {
+  const id = ++run;
+  play(id).catch((e) => {
+    if (e.message !== "restarted") throw e;
+  });
+}
+
+function fit() {
+  const scale = Math.min((innerWidth - 32) / 1280, (innerHeight - 32) / 780, 1);
+  $("stage").style.transform = `scale(${scale})`;
+}
+addEventListener("resize", fit);
+fit();
+
+const params = new URLSearchParams(location.search);
+if (params.has("embed")) {
+  document.querySelector(".controls").style.display = "none";
+  document.querySelector(".mode").style.display = "none";
+  document.body.style.background = "transparent";
+}
+(() => {
+  const theme = params.get("theme"), root = document.documentElement;
+  if (theme !== "follow") { if (theme) root.dataset.theme = theme; return; }
+  try { root.dataset.theme = parent.document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); } catch {}
+  addEventListener("message", (e) => {
+    if (e.origin === location.origin && (e.data?.theme === "dark" || e.data?.theme === "light")) root.dataset.theme = e.data.theme;
+  });
+})();
+setMode(params.get("mode") === "apply" ? "apply" : "ask");
+
+$("replay").onclick = start;
+$("mode-ask").onclick = () => {
+  setMode("ask");
+  start();
+};
+$("mode-apply").onclick = () => {
+  setMode("apply");
+  start();
+};
+$("theme-toggle").onclick = () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme === "dark";
+  root.dataset.theme = dark ? "light" : "dark";
+  $("theme-toggle").textContent = dark ? "Dark" : "Light";
+};
+start();
+</script>
+</body>
+</html>

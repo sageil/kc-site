@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Approvals Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="frame.css">
+<style>.stage { height: 640px; }</style>
+<script src="frame.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div class="flex min-h-0 grow flex-col bg-canvas">
+    <div class="flex shrink-0 items-start gap-2 border-b border-hairline bg-subtle/60 px-4 py-3 font-mono text-app-xs font-semibold text-accent-cyan-bright">
+      <svg class="mt-0.5 size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5.2"/><path d="m5.6 11.6 6.4-6.4 6.4 6.4"/></svg>
+      <p class="m-0 font-normal">Fix the flaky retry test. The shared config is next door in ../shared-config if you need it.</p>
+    </div>
+    <div class="grid min-h-0 grow grid-cols-2 gap-4 p-4">
+      <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-hairline bg-panel">
+        <header class="flex items-center justify-between gap-3 border-b border-hairline px-3 py-2 font-mono text-app-xs"><span class="font-semibold text-ink">Runs on: Host</span><span class="flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-app-2xs transition border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright"><span class="size-1.5 shrink-0 rounded-full bg-accent-amber"></span><span class="truncate">Host · asks first</span><svg class="size-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></header>
+        <div id="left-scroll" class="min-h-0 grow overflow-hidden p-3"><div id="left" class="flex flex-col gap-2.5"></div></div>
+        <footer id="left-count" class="flex items-center justify-between gap-3 border-t border-hairline px-3 py-2 font-mono text-app-2xs text-dim tabular-nums"></footer>
+      </section>
+      <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-hairline bg-panel">
+        <header class="flex items-center justify-between gap-3 border-b border-hairline px-3 py-2 font-mono text-app-xs"><span class="font-semibold text-ink">Runs on: Docker</span><span class="flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-app-2xs transition border-accent-emerald/35 bg-accent-emerald/12 text-accent-emerald-bright"><span class="size-1.5 shrink-0 rounded-full bg-accent-emerald"></span><span class="truncate">Docker · rust · applies directly</span><svg class="size-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></header>
+        <div id="right-scroll" class="min-h-0 grow overflow-hidden p-3"><div id="right" class="flex flex-col gap-2.5"></div></div>
+        <footer id="right-count" class="flex items-center justify-between gap-3 border-t border-hairline px-3 py-2 font-mono text-app-2xs text-dim tabular-nums"></footer>
+      </section>
+    </div>
+  </div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+const DIFF = ["M6 3.5v17", "M18 3.5v17", "M9.6 8.5h4.8", "M9.6 12h4.8", "M9.6 15.5h4.8"];
+const COPY = ["M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z", "M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2"];
+const CHIP = { amber: "border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright" };
+const chip = (label, tone) => `<span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase ${CHIP[tone]}"><span class="truncate">${label}</span></span>`;
+const side = (name) => ({ list: $(name), scroll: $(`${name}-scroll`), rail: null });
+const L = side("left"), R = side("right");
+const scrollDown = (s) => (s.scroll.scrollTop = s.scroll.scrollHeight);
+const put = (s, html) => {
+  s.rail = null;
+  s.list.insertAdjacentHTML("beforeend", html);
+  scrollDown(s);
+  return s.list.lastElementChild;
+};
+const railed = (s, html) => {
+  if (!s.rail) {
+    s.list.insertAdjacentHTML("beforeend", '<div class="relative flex flex-col pl-5"><span class="absolute top-2.5 bottom-2.5 left-[7px] w-px bg-hairline"></span></div>');
+    s.rail = s.list.lastElementChild;
+  }
+  s.rail.insertAdjacentHTML("beforeend", html);
+  scrollDown(s);
+  return s.rail.lastElementChild;
+};
+const ROW = "flex w-full min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left font-mono text-app-xs transition hover:bg-subtle";
+const DOT = { running: "border-transparent bg-accent-cyan", amber: "border-transparent bg-accent-amber", done: "border-dim bg-panel" };
+const outBody = (lines) => `<div class="flex flex-col gap-1 border-t border-hairline bg-canvas p-3 font-mono text-code text-muted">${lines.map((t) => `<div class="flex flex-wrap items-baseline gap-x-1"><span class="flex flex-wrap items-baseline gap-x-1"><span class="text-muted">${t}</span></span></div>`).join("")}</div>`;
+const caption = (line, badge) => `<div class="flex items-center justify-between gap-3 border-t border-hairline bg-canvas/60 px-3 py-2 font-mono text-app-xs text-dim"><span class="flex flex-wrap items-baseline gap-x-1"><span class="whitespace-pre-wrap break-all text-dim">${line}</span></span>${chip(badge, "amber")}</div>`;
+const lineCount = (n) => (n === 0 ? "no result yet" : n === 1 ? "1 line" : `${n} lines`);
+const stepLine = (verb, subject, badge, meta, unfolds) => `<span class="min-w-0 grow truncate"><span class="text-muted">${verb} </span><span class="text-ink/90">${subject}</span></span><span class="flex shrink-0 items-center gap-1.5 text-app-2xs text-dim">${badge ? chip(badge, "amber") : ""}<span class="tabular-nums">${meta}</span>${unfolds ? icon("size-3 shrink-0 transition-transform group-open/step:rotate-90", GLYPH.chevronRight) : ""}</span>`;
+const shellStep = ({ verb, subject, command, dot, badge, meta, open, body }) => `<div class="enter relative scroll-mt-3"><span class="absolute top-[9px] left-[-17px] size-2 rounded-full border ${DOT[dot]}"></span><details class="group/step"${open ? " open" : ""}><summary class="${ROW} cursor-pointer list-none select-none">${stepLine(verb, subject, badge, meta, true)}</summary>${open ? `<div class="flex flex-col gap-1.5 py-1.5 pl-1.5"><div class="flex items-start gap-2 font-mono text-app-2xs text-dim"><span class="min-w-0 grow break-all">$ ${command}</span><button type="button" class="shrink-0 rounded p-0.5 transition hover:bg-hover hover:text-ink">${icon("size-3.5", COPY)}</button></div><div class="overflow-hidden rounded-md border border-hairline">${body}</div></div>` : ""}</details></div>`;
+const readStep = (subject, meta) => `<div class="enter relative scroll-mt-3"><span class="absolute top-[9px] left-[-17px] size-2 rounded-full border ${DOT.done}"></span><button type="button" class="${ROW} cursor-pointer">${stepLine("Read", subject, "", meta, false)}</button></div>`;
+async function shellRun(s, id, { verb, subject, command, lines, exit, ms = 700 }) {
+  const el = railed(s, shellStep({ verb, subject, command, dot: "running", meta: lineCount(0), open: true, body: outBody([]) }));
+  await sleep(ms / 2); alive(id);
+  el.outerHTML = shellStep({ verb, subject, command, dot: "running", meta: lineCount(lines.length), open: true, body: outBody(lines) });
+  await sleep(ms); alive(id);
+  const last = s.rail.lastElementChild;
+  last.outerHTML = shellStep({ verb, subject, command, dot: exit ? "amber" : "done", badge: exit ? `exit ${exit}` : "", meta: lineCount(lines.length), open: false });
+  scrollDown(s);
+}
+async function read(s, id, subject, meta, ms = 600) {
+  const el = railed(s, `<div class="enter relative scroll-mt-3"><span class="absolute top-[9px] left-[-17px] size-2 rounded-full border ${DOT.running}"></span><div class="${ROW}">${stepLine("Read", subject, "", "no result yet", false)}</div></div>`);
+  await sleep(ms); alive(id);
+  el.outerHTML = readStep(subject, meta);
+}
+const DIFF_LINES = [["  let deadline = started + policy.deadline;", "text-dim"], ["- if attempt < policy.max_attempts {", "text-accent-rose"], ["+ if attempt < policy.max_attempts", "text-accent-emerald-bright"], ["+     && Instant::now() < deadline", "text-accent-emerald-bright"], ["+ {", "text-accent-emerald-bright"]];
+const diffBody = `<div class="flex flex-col gap-1 border-t border-hairline bg-canvas p-3 font-mono text-code text-muted">${DIFF_LINES.map(([t, tone]) => `<div class="flex flex-wrap items-baseline gap-x-1"><span class="flex flex-wrap items-baseline gap-x-1"><span class="whitespace-pre-wrap break-all ${tone}">${t}</span></span></div>`).join("")}</div>`;
+const editCard = (waiting) => `<article class="enter flex w-full flex-col overflow-hidden rounded-lg border border-hairline bg-panel transition hover:border-dim/40 scroll-mt-3">
+  <button type="button" class="cursor-pointer text-left transition hover:bg-hover flex items-center justify-between gap-3 p-2.5"><div class="flex min-w-0 flex-1 items-center gap-2.5 font-mono text-app-xs"><span class="shrink-0 font-bold select-none text-accent-cyan-bright">&gt;_</span><span class="flex min-w-0 items-baseline gap-1.5"><span class="shrink-0 text-ink/80">Edit</span><span class="truncate text-accent-cyan-bright">src/webhooks/retry.rs</span></span></div><div class="flex shrink-0 items-center gap-1.5 font-mono text-app-2xs text-muted"><span class="shrink-0 tabular-nums">${waiting ? "no result yet" : "+3 \u22121"}</span></div></button>
+  ${waiting ? outBody([]) : diffBody}
+</article>`;
+const kbd = (k) => `<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">${k}</kbd>`;
+const proposal = `<section class="enter shrink-0 overflow-hidden rounded-lg border border-hairline bg-panel">
+  <header class="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2"><div class="flex min-w-0 items-center gap-2">${icon("size-[15px] shrink-0 text-accent-indigo-bright", DIFF)}<span class="truncate text-app-sm font-medium text-ink">Stop retrying once the deadline has passed</span></div><span class="shrink-0 font-mono text-app-2xs tabular-nums"><span class="text-accent-emerald-bright">+3</span><span class="text-dim"> </span><span class="text-accent-rose">-1</span></span></header>
+  ${diffBody.replace("border-t border-hairline ", "")}
+  <footer class="flex flex-wrap items-center gap-2 border-t border-hairline px-4 py-2"><button id="accept" type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-emerald/40 bg-accent-emerald/10 px-2.5 py-1 text-app-xs font-medium text-accent-emerald-bright transition hover:bg-accent-emerald/20">${icon("size-3.5", GLYPH.check)}Accept${kbd("⌘↵")}</button><button type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-rose/40 bg-accent-rose/10 px-2.5 py-1 text-app-xs font-medium text-accent-rose transition hover:bg-accent-rose/20">${icon("size-3.5", GLYPH.close)}Reject${kbd("⌘⌫")}</button><span class="min-w-0 grow rounded border border-hairline bg-canvas px-2 py-1 text-app-xs text-dim">Optional note sent with a rejection</span></footer>
+</section>`;
+const LS_ARGS = '{"description":"List the shared config folder","command":"ls ../shared-config","operation":"read"}';
+const approval = `<div class="enter flex items-start gap-2.5 rounded-lg border p-3.5 border-accent-amber/30 bg-accent-amber/5">${icon("mt-0.5 size-[18px] shrink-0 text-accent-amber-bright", GLYPH.shield)}<div class="flex min-w-0 flex-col gap-1">
+  <span class="text-app-sm font-medium text-accent-amber-bright">Approval required</span>
+  <p class="text-app-sm leading-relaxed text-muted">run ls ../shared-config</p>
+  <p class="text-app-sm leading-relaxed text-muted"><span class="text-dim">Reason: </span><span class="text-ink">outside the project (\`/Users/dev/code/shared-config\`)</span></p>
+  <p class="text-app-sm leading-relaxed text-muted"><span class="text-dim">Agent's description: </span><span class="text-ink">List the shared config folder</span></p>
+  <p class="text-app-sm leading-relaxed text-muted"><span class="text-dim">Agent's label: </span><span class="text-ink">read</span></p>
+  <p class="flex flex-wrap items-center gap-x-1.5 font-mono text-app-2xs text-dim"><span>tool</span><code class="rounded bg-canvas px-1 py-0.5 text-accent-amber-bright">shell</code><span>arguments</span><code class="max-w-full truncate rounded bg-canvas px-1 py-0.5 text-accent-amber-bright">${esc(LS_ARGS)}</code></p>
+  <span class="mt-1 w-full rounded border border-hairline bg-canvas px-2 py-1 text-app-xs text-dim">Optional note for the agent, e.g. only do what I asked</span>
+  <div class="mt-1 flex items-center gap-2"><button id="run-once" type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-emerald/40 bg-accent-emerald/10 px-2.5 py-1 text-app-xs font-medium text-accent-emerald-bright transition hover:bg-accent-emerald/20">${icon("size-3.5", GLYPH.check)}Run once</button><button type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-hairline bg-subtle px-2.5 py-1 text-app-xs font-medium text-ink transition hover:bg-hover">${icon("size-3.5", GLYPH.shield)}Allow for this session</button><button type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-rose/40 bg-accent-rose/10 px-2.5 py-1 text-app-xs font-medium text-accent-rose transition hover:bg-accent-rose/20">${icon("size-3.5", GLYPH.close)}Deny</button></div>
+</div></div>`;
+const changed = (kept) => `<div class="enter flex items-center justify-between gap-2 rounded-lg border border-hairline bg-canvas px-2 py-1 font-mono text-app-xs"><div class="flex min-w-0 grow items-center justify-between gap-2 rounded p-1 transition hover:bg-hover"><button type="button" class="flex min-w-0 grow cursor-pointer items-center gap-1.5 text-left"><span class="size-1.5 shrink-0 rounded-full bg-accent-amber"></span><span class="truncate text-ink/80">src/webhooks/retry.rs</span></button><div class="flex shrink-0 items-center gap-2 tabular-nums"><span class="text-accent-emerald-bright">+3</span><span class="text-accent-rose">-1</span>${kept ? '<span class="text-accent-emerald-bright">Kept</span><button type="button" class="cursor-pointer text-muted transition hover:text-ink">Undo</button>' : '<button id="keep" type="button" class="cursor-pointer text-accent-cyan-bright transition hover:text-accent-cyan">Keep</button>'}<button type="button" class="cursor-pointer text-muted transition hover:text-accent-rose">Discard</button></div></div></div>`;
+const counter = (calls, stops, extra) => `<span>${calls} tool call${calls === 1 ? "" : "s"}</span><span>${stops === null ? extra : `stopped for you ${stops} time${stops === 1 ? "" : "s"}`}</span>`;
+const TEST = { verb: "Ran", subject: "cargo test retry", command: "cargo test retry" };
+const FAILED = { ...TEST, lines: ["test retries_on_503 ... ok", "test gives_up_after_deadline ... FAILED"], exit: 101 };
+const PASSED = { ...TEST, lines: ["test result: ok. 6 passed; 0 failed"] };
+const LS = { verb: "Listed", subject: "../shared-config", command: "ls ../shared-config" };
+
+async function left(id) {
+  let calls = 0, stops = 0;
+  const tick = () => ($("left-count").innerHTML = counter(calls, stops));
+  tick();
+  await shellRun(L, id, FAILED); calls++; tick();
+  await sleep(600); alive(id);
+  await read(L, id, "src/webhooks/retry.rs", "96 lines"); calls++; tick();
+  const card = put(L, editCard(true)); calls++; stops++; tick();
+  const offer = put(L, proposal);
+  await sleep(1600); alive(id);
+  await click($("accept"), id);
+  offer.remove();
+  card.outerHTML = editCard(false);
+  L.rail = null;
+  await sleep(500); alive(id);
+  const parked = railed(L, shellStep({ ...LS, dot: "amber", meta: "no result yet", open: true, body: caption("waiting for your approval", "needs you") }));
+  const gate = put(L, approval); calls++; stops++; tick();
+  await sleep(2000); alive(id);
+  await click($("run-once"), id);
+  gate.remove();
+  L.rail = parked.parentElement;
+  parked.remove();
+  await shellRun(L, id, { ...LS, lines: ["README.md", "hosts.toml", "retry.toml"], ms: 600 });
+  await sleep(500); alive(id);
+  await shellRun(L, id, PASSED); calls++; tick();
+}
+async function right(id) {
+  let calls = 0;
+  const tick = (extra) => ($("right-count").innerHTML = counter(calls, extra ? null : 0, extra));
+  tick();
+  await shellRun(R, id, FAILED); calls++; tick();
+  await sleep(600); alive(id);
+  await read(R, id, "src/webhooks/retry.rs", "96 lines"); calls++; tick();
+  put(R, editCard(false)); calls++; tick();
+  await sleep(500); alive(id);
+  await shellRun(R, id, { ...LS, lines: ["ls: cannot access '../shared-config': No such file or directory"], exit: 2, ms: 600 }); calls++; tick();
+  await sleep(500); alive(id);
+  await shellRun(R, id, PASSED); calls++; tick();
+  await sleep(400); alive(id);
+  put(R, changed(false));
+  tick("keep or discard each file afterwards");
+}
+async function play(id) {
+  L.list.innerHTML = ""; R.list.innerHTML = ""; L.rail = R.rail = null;
+  $("pointer").style.left = "640px"; $("pointer").style.top = "700px";
+  await sleep(900); alive(id);
+  await Promise.all([left(id), right(id)]);
+  await sleep(1200); alive(id);
+  await click($("keep"), id);
+  R.list.lastElementChild.outerHTML = changed(true);
+  await sleep(4200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage(640);
+loop(play)();
+</script>
+</body>
+</html>

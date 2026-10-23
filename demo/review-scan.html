@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Review Scan Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const CHEV = ["m6 9 6 6 6-6"];
+const UP = ["M12 20V5.2", "m5.6 11.6 6.4-6.4 6.4 6.4"];
+const CLIP = ["m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"];
+const T = {
+  cyan: { text: "text-accent-cyan-bright", dot: "bg-accent-cyan" },
+  purple: { text: "text-accent-purple-bright", dot: "bg-accent-purple" },
+  emerald: { text: "text-accent-emerald-bright", dot: "bg-accent-emerald" },
+  amber: { text: "text-accent-amber-bright", dot: "bg-accent-amber" },
+};
+const parts = [
+  { name: "@review-context", tone: "cyan", desc: "Research the project for the reviewers", acts: ["query_code_graph", "read_file", "thinking"], calls: 11, time: "41s", ms: 2600 },
+  { name: "@review-security", tone: "purple", desc: "Security review", acts: ["read_file", "query_code_graph", "thinking"], calls: 9, time: "52s", ms: 2400 },
+  { name: "@review-quality", tone: "emerald", desc: "Correctness and quality review", acts: ["read_file", "thinking", "query_code_graph"], calls: 8, time: "47s", ms: 2200 },
+  { name: "@review-practices", tone: "amber", desc: "Best-practice review", acts: ["read_file", "thinking"], calls: 6, time: "33s", ms: 1900 },
+  { name: "@review-custom", tone: "cyan", desc: "Review against the project's rules", acts: ["read_file", "thinking"], calls: 5, time: "29s", ms: 1800 },
+  { name: "@review-challenge", tone: "purple", desc: "Challenge the findings", acts: ["read_file", "thinking"], calls: 7, time: "38s", ms: 2400 },
+];
+const COMMANDS = [
+  ["/providers", "Open provider settings"], ["/settings", "Open the preferences screen"], ["/models", "Choose the model for the active provider"],
+  ["/sessions", "Browse the sessions the transcript holds", "⌘O"], ["/logs", "Read what Koda logged, by category"], ["/metrics", "Read what this session's calls cost"],
+  ["/graph", "Explore who calls what in this project's code"], ["/memory", "Browse, edit and link what the agent remembers"],
+  ["/automations", "Run the project's automations and read what they decided"], ["/autonomous", "Follow the goals, automations and background subagents working on their own"],
+  ["/agents", "Make and edit the agents the main agent delegates to"], ["/new", "Start a new session", "⌘N"], ["/shortcuts", "Show the keyboard shortcuts"],
+  ["/review", "Review uncommitted changes, or follow it with a branch or a commit"],
+  ["/review-security", "Review only for security vulnerabilities; takes the same targets as /review"],
+  ["/review-quality", "Review only for correctness and quality; takes the same targets as /review"],
+  ["/review-practices", "Review only for best practice; takes the same targets as /review"],
+  ["/review-rules", "Review only against the project's rules and AGENTS.md; takes the same targets as /review"],
+  ["/compact", "Compact this session's conversation into a summary"], ["/light", "Use the light theme"], ["/dark", "Use the dark theme"],
+];
+const SUMMARY = "4 findings, 2 critical or high. The challenge dropped 1 it could disprove or doubt.";
+const findings = [
+  { id: 1, sev: "critical", tone: "border-accent-rose/35 bg-accent-rose/12 text-accent-rose", title: "Signing secret written to the request log", place: "src/webhooks/send.rs:42", cat: "Security · CWE-532",
+    body: "The debug line logs the whole request, including the X-Signature-Secret header.", exploit: "anyone who can read the application logs can sign webhooks as acme-api.", rec: "Log the endpoint id instead of the request.",
+    patch: ["--- a/src/webhooks/send.rs", "+++ b/src/webhooks/send.rs", "@@ -42 +42 @@", '-    tracing::debug!(?request, "sending webhook");', '+    tracing::debug!(endpoint = %endpoint.id, "sending webhook");'] },
+  { id: 2, sev: "high", tone: "border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright", title: "Retries never stop on a 5xx reply", place: "src/webhooks/retry.rs:18-27", cat: "Correctness",
+    body: "should_retry returns true for every 5xx status, and the loop has no attempt limit.", exploit: "an endpoint that keeps answering 503 holds a delivery worker forever.", rec: "Stop after max_attempts and record the delivery as failed." },
+  { id: 3, sev: "medium", tone: "border-accent-indigo/35 bg-accent-indigo/12 text-accent-indigo-bright", title: "Signature compared with ==, which leaks timing", place: "src/webhooks/verify.rs:31", cat: "Security · CWE-208",
+    body: "The expected and received signatures are compared with ==, which returns at the first byte that differs.", exploit: "a caller who can time replies can guess a valid signature byte by byte.", rec: "Compare the signatures with constant_time_eq.",
+    patch: ["--- a/src/webhooks/verify.rs", "+++ b/src/webhooks/verify.rs", "@@ -31 +31 @@", "-    if expected == received {", "+    if constant_time_eq(expected.as_bytes(), received.as_bytes()) {"] },
+  { id: 4, sev: "low", tone: "border-hairline bg-subtle text-muted", title: "Backoff constants duplicated in two modules", place: "src/webhooks/retry.rs:5-6", cat: "Best practice",
+    body: "BASE_DELAY_MS and MAX_DELAY_MS are defined here and again in src/jobs/queue.rs.", exploit: "changing one copy leaves webhooks and jobs backing off differently.", rec: "Read them from config::Retry instead of redefining them here." },
+];
+const REVIEW = { label: "uncommitted changes", summary: SUMMARY, findings, page: "7c1e2b40-5d3a-4f8e-9b21-0a6c4e9d1f53" };
+const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const kbd = (k) => `<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">${k}</kbd>`;
+const button = (label, kind, id) => {
+  const cls = kind === "primary" ? "border-accent-cyan/45 bg-accent-cyan/10 font-medium text-accent-cyan-bright hover:border-accent-cyan hover:bg-accent-cyan/18" : "border-hairline bg-subtle text-ink/80 hover:bg-hover hover:text-ink";
+  return `<button${id ? ` id="${id}"` : ""} type="button" class="flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${cls}">${label}</button>`;
+};
+const chip = (label, tone) => `<span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase ${tone}"><span class="truncate">${label}</span></span>`;
+
+const centre = `
+  <div class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4"><div class="flex min-w-0 items-center gap-2"><span id="title" class="truncate font-sans text-app-xs text-muted"></span></div><div class="flex shrink-0 items-center gap-3 font-mono text-app-xs text-muted"><span class="flex items-center gap-1">${icon("size-3.5 text-accent-cyan-bright", GLYPH.bolt)}Plan mode: <strong class="text-ink">OFF</strong></span><span class="flex items-center gap-1.5 rounded px-1.5 py-0.5"><strong id="tok" class="text-accent-cyan-bright">0 tok</strong><span class="text-dim">·</span><span>Cache hit <strong class="text-ink">0%</strong></span></span></div></div>
+  <div class="flex min-h-0 grow flex-col overflow-hidden"><div id="scroller" class="h-full overflow-y-auto p-4"><div id="stream" class="mx-auto flex w-full flex-col gap-3"></div></div></div>
+  <div class="shrink-0 bg-canvas px-3 pt-2 pb-3"><div class="mx-auto w-full max-w-3xl"><div id="dock"></div></div></div>`;
+
+let runsOn = { label: "Host · changes ask first", tone: "border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright", dot: "bg-accent-amber" };
+function dock(typed, working) {
+  const list = typed.startsWith("/") && !/\s/.test(typed) ? COMMANDS.filter(([n]) => n.startsWith(typed)) : [];
+  const popover = list.length ? `<div class="absolute bottom-full left-0 z-40 mb-2 flex max-h-72 w-96 flex-col overflow-y-auto rounded-lg border border-hairline bg-elevated p-1 elevated-shadow" role="listbox">${list.map(([n, d, k], i) => `<button type="button" class="flex w-full cursor-pointer items-baseline gap-2.5 rounded px-2.5 py-1.5 text-left transition${i === 0 ? " bg-hover" : ""}"><span class="shrink-0 font-mono text-app-xs text-accent-cyan-bright">${n}</span><span class="min-w-0 grow truncate font-mono text-app-2xs text-dim">${d}</span>${k ? `<span class="shrink-0">${kbd(k)}</span>` : ""}</button>`).join("")}</div>` : "";
+  const star = working
+    ? `<span class="koda-star relative inline-flex shrink-0 items-center justify-center size-4 text-accent-indigo-bright"><svg class="animate-sparkle-pulse block size-full" viewBox="0 0 24 24" fill="currentColor"><path d="${GLYPH.sparkle[0]}"/><path d="${GLYPH.sparkle[1]}"/></svg></span>`
+    : icon("size-4 shrink-0 text-accent-indigo-bright", GLYPH.sparkle);
+  const field = typed
+    ? `<div class="min-w-0 grow py-1 text-app-xs leading-relaxed whitespace-pre-wrap text-ink">${esc(typed)}<span class="caret"></span></div>`
+    : `<div class="min-w-0 grow py-1 text-app-xs leading-relaxed text-dim">Message the agent · / for commands · @ for agents · ⌘↵ to send</div>`;
+  const hints = working ? [["⌘↵", "Steer"], ["⇧⌘↵", "Queue"], ["Esc", "Cancel"]] : [["⌘↵", "Send"], ["Esc", "Cancel"]];
+  $("dock").innerHTML = `<div class="flex w-full flex-col rounded-lg border p-2 elevated-shadow backdrop-blur-xl transition bg-panel/95 ${typed ? "border-accent-indigo/50" : "border-hairline"}">
+    <div class="relative flex items-start gap-2 px-1">${star}${popover}${field}<span class="flex size-6 shrink-0 items-center justify-center rounded text-dim">${icon("size-4", CLIP)}</span>${kbd("⌘K")}</div>
+    <div class="mt-1.5 flex items-center justify-between gap-3 border-t border-hairline-soft px-1 pt-1.5 text-app-2xs text-dim">
+      <span class="flex max-w-[260px] items-center gap-1.5 rounded border px-2 py-0.5 font-mono ${runsOn.tone}"><span class="size-1.5 shrink-0 rounded-full ${runsOn.dot}"></span><span class="truncate">${runsOn.label}</span>${icon("size-2.5 shrink-0", CHEV)}</span>
+      <div class="flex shrink-0 items-center gap-2 font-mono">${hints.map(([k, a]) => `<span class="flex items-center gap-1">${kbd(k)}${a}</span>`).join("")}<button id="send" type="button" class="flex cursor-pointer items-center gap-1 rounded border border-elevated bg-hover px-2.5 py-1 text-app-xs font-medium text-ink transition hover:bg-elevated">Send${icon("size-3 text-dim", UP)}</button></div>
+    </div></div>`;
+}
+
+function card(st, step, active, label = "uncommitted changes") {
+  const launched = st.filter((s) => s.status !== "waiting");
+  const running = launched.filter((s) => s.status === "running").length, done = launched.filter((s) => s.status === "done").length, total = launched.length;
+  const plural = total === 1 ? "sub-agent" : "sub-agents";
+  let headline = "";
+  if (total && running) headline = `Waiting on ${total} ${plural} · ${done} done`;
+  else if (total && active) headline = `${step} · ${done} ${plural} done`;
+  else if (total) headline = `${total} ${plural} finished`;
+  headline = `Review of ${label} · ${headline}`;
+  const rows = parts.map((a, i) => [a, st[i]]).filter(([, s]) => s.status !== "waiting");
+  return `<details class="group/fold flex w-full flex-col overflow-hidden rounded-lg border border-hairline bg-panel transition hover:border-dim/40"${running || active ? " open" : ""}>
+    <summary class="flex cursor-pointer list-none items-center gap-2.5 p-2.5 font-mono text-app-xs select-none">${running || active ? '<span class="size-3 shrink-0 animate-spin rounded-full border-[1.5px] border-hairline border-t-accent-cyan"></span>' : icon("size-3 shrink-0 text-dim transition-transform group-open/fold:rotate-90", GLYPH.chevronRight)}<span class="min-w-0 truncate ${running ? "text-accent-cyan-bright" : "text-muted"}">${headline}</span><span class="ml-auto shrink-0 text-app-2xs text-dim tabular-nums">${st.span}</span></summary>
+    <div class="flex flex-col border-t border-hairline px-1.5 py-1.5">${rows.map(([a, s]) => `<button type="button" class="flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded px-1.5 py-1 text-left font-mono text-app-xs transition hover:bg-subtle"><span class="size-2 shrink-0 rounded-full ${s.status === "running" ? "animate-pulse " : ""}${T[a.tone].dot}"></span><span class="shrink-0 ${T[a.tone].text}">${a.name}</span><span class="min-w-0 grow truncate text-muted">${a.desc}</span><span class="max-w-40 shrink-0 truncate text-app-2xs text-dim">${s.activity}</span><span class="w-16 shrink-0 text-right text-app-2xs text-dim tabular-nums">${s.calls} calls</span><span class="w-14 shrink-0 text-right text-app-2xs text-dim tabular-nums">${s.clock}</span>${icon("size-3 shrink-0 text-dim", GLYPH.chevronRight)}</button>`).join("")}</div></details>`;
+}
+
+const DIFF = "overflow-x-auto whitespace-pre rounded border border-hairline bg-canvas p-3 font-mono text-code leading-relaxed";
+const diffLine = (l) => `<span class="${l.startsWith("+") && !l.startsWith("+++") ? "text-accent-emerald-bright" : l.startsWith("-") && !l.startsWith("---") ? "text-accent-rose" : l.startsWith("@@") ? "text-accent-purple-bright" : "text-muted"}">${esc(l)}</span>`;
+const code = (t) => `<code class="rounded bg-subtle px-1 font-mono text-accent-cyan-bright">${esc(t)}</code>`;
+function message(review = REVIEW) {
+  const blocks = review.findings.map((f) => `<ol class="flex flex-col gap-1 pl-5 list-decimal" start="${f.id}"><li class="space-y-1"><p class="whitespace-pre-wrap"><strong class="font-semibold">[${f.sev}] ${esc(f.title)}</strong> ${code(f.place)} (${f.cat})</p></li></ol>
+    <p class="whitespace-pre-wrap">${esc(f.body)}</p><p class="whitespace-pre-wrap">Triggered by: ${esc(f.exploit)}</p><p class="whitespace-pre-wrap">Recommendation: ${esc(f.rec)}</p>${f.patch ? `<pre class="${DIFF}">${f.patch.map(diffLine).join("\n")}</pre>` : ""}`).join("");
+  return `<div class="enter flex flex-col gap-1 rounded-lg border border-hairline bg-panel p-3 font-mono text-app-xs leading-relaxed text-ink"><div class="flex min-w-0 flex-col gap-2 wrap-anywhere"><p class="whitespace-pre-wrap"><strong class="font-semibold">Review of ${esc(review.label)}</strong></p><p class="whitespace-pre-wrap">${review.summary}</p>${blocks}<p class="whitespace-pre-wrap">The full review, with the diff, is at /Users/you/dev/acme-api/.koda/reviews/${review.page}.html.</p></div></div>`;
+}
+function reviewCard(review = REVIEW) {
+  return `<section class="enter flex flex-col gap-2 rounded-md border border-hairline bg-panel px-3 py-2.5" aria-label="Review findings">
+    <div class="flex items-center justify-between gap-3"><div class="flex min-w-0 flex-col"><span class="truncate text-app-sm font-medium text-ink">Review of ${esc(review.label)}</span><span class="text-app-2xs text-muted">${review.summary}</span></div>${button("Open in browser", "secondary")}</div>
+    ${review.findings.map((f) => `<div class="flex flex-col gap-1 border-t border-hairline-soft pt-2">
+      <div class="flex items-center gap-2">${chip(f.sev, f.tone)}<span class="min-w-0 truncate text-app-xs text-ink">${f.id}. ${esc(f.title)}</span><span class="ml-auto shrink-0 font-mono text-app-2xs text-dim">${f.place}</span></div>
+      <span class="text-app-2xs text-muted">${esc(f.rec)}</span>
+      <div class="flex flex-wrap gap-1.5">${f.patch ? button("Apply suggestion", "primary", `apply-${f.id}`) : ""}${button("Fix it for me", "secondary")}${button("Ask", "secondary")}${button("Dismiss", "secondary")}${button("Mark fixed", "secondary")}</div></div>`).join("")}
+  </section>`;
+}
+
+function setStatus(kind) {
+  const s = $("status");
+  const base = "flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-app-2xs font-medium ";
+  if (kind === "working") { s.className = base + "koda-pulse-glow border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan-bright"; s.innerHTML = `<span class="koda-star relative inline-flex shrink-0 items-center justify-center size-3.5 text-accent-indigo-bright"><svg class="animate-sparkle-pulse block size-full" viewBox="0 0 24 24" fill="currentColor"><path d="${GLYPH.sparkle[0]}"/><path d="${GLYPH.sparkle[1]}"/></svg></span><span>Working</span>`; return; }
+  s.className = base + "border-hairline bg-subtle text-accent-emerald-bright"; s.innerHTML = '<span class="inline-block size-1.5 shrink-0 rounded-full bg-accent-emerald"></span><span>Finished</span>';
+}
+const add = (html) => { $("stream").insertAdjacentHTML("beforeend", html); $("scroller").scrollTop = $("scroller").scrollHeight; };
+const clock = (ms) => { const s = Math.floor(ms / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`; };
+
+async function play(id) {
+  await secretScene(id);
+}
+const q = (s) => document.querySelector(s);
+const SECRET = "3q8ZrT1vK9mXw2LpN6bYc4HdF7jGs0Ua";
+const ASK = "Fix the authentication middleware: requests with an expired token still get through.";
+const SHA = "3f9c2a17e4b8d05c6a1f92e7b3d48c05a6e1f293";
+const FILE = "src/auth/middleware.rs";
+const LEAK = {
+  label: `changes against ${SHA}`,
+  summary: "1 finding, 1 critical or high.",
+  page: "b93d0f6e-2a7c-4e15-8d4b-61f0c2a9e7d8",
+  findings: [{ id: 1, sev: "critical", tone: "border-accent-rose/35 bg-accent-rose/12 text-accent-rose", title: "Read the JWT signing secret from config instead of hard-coding it", place: `${FILE}:6`, cat: "Security · CWE-798",
+    body: "This change replaces config.jwt_secret with a JWT signing secret written as a string literal at middleware.rs:6, so the secret is committed with the code and is the same in every environment. The secret scanner flagged the same line (S1).",
+    exploit: "anyone who can read the repository or its history can sign a token the middleware accepts and act as any user.",
+    rec: "Decode with config.jwt_secret again, and rotate the secret, since it has been written to disk.",
+    patch: [`--- a/${FILE}`, `+++ b/${FILE}`, "@@ -6 +5,0 @@", `-const JWT_SECRET: &str = "${SECRET}";`, "@@ -21 +20 @@", "-    let key = DecodingKey::from_secret(JWT_SECRET.as_bytes());", "+    let key = DecodingKey::from_secret(config.jwt_secret.as_bytes());"] }],
+};
+const EDITED = ["  use jsonwebtoken::{decode, DecodingKey, Validation};", `+ const JWT_SECRET: &str = "${SECRET}";`, "- let key = DecodingKey::from_secret(config.jwt_secret.as_bytes());", "+ let key = DecodingKey::from_secret(JWT_SECRET.as_bytes());", "+ let mut validation = Validation::default();", "+ validation.validate_exp = true;"];
+const readCard = (done) => `<article class="enter flex w-full flex-col overflow-hidden rounded-lg border border-hairline bg-panel transition hover:border-dim/40 scroll-mt-3"><div class="flex items-center justify-between gap-3 p-2.5"><div class="flex min-w-0 flex-1 items-center gap-2.5 font-mono text-app-xs"><span class="shrink-0 font-bold select-none text-accent-cyan-bright">&gt;_</span><span class="flex min-w-0 items-baseline gap-1.5"><span class="shrink-0 text-ink/80">Read</span><span class="truncate text-accent-cyan-bright">${FILE}</span></span></div><div class="flex shrink-0 items-center gap-1.5 font-mono text-app-2xs text-muted"><span class="shrink-0 tabular-nums">${done ? "48 lines" : "no result yet"}</span></div></div></article>`;
+const editCard = (done) => `<article class="enter flex w-full flex-col overflow-hidden rounded-lg border border-hairline bg-panel transition hover:border-dim/40 scroll-mt-3"><button type="button" class="cursor-pointer text-left transition hover:bg-hover flex items-center justify-between gap-3 p-2.5"><div class="flex min-w-0 flex-1 items-center gap-2.5 font-mono text-app-xs"><span class="shrink-0 font-bold select-none text-accent-cyan-bright">&gt;_</span><span class="flex min-w-0 items-baseline gap-1.5"><span class="shrink-0 text-ink/80">Edit</span><span class="truncate text-accent-cyan-bright">${FILE}</span></span></div><div class="flex shrink-0 items-center gap-1.5 font-mono text-app-2xs text-muted"><span class="shrink-0 tabular-nums">${done ? "+3 −1" : "no result yet"}</span></div></button>${done ? `<div class="flex flex-col gap-1 border-t border-hairline bg-canvas p-3 font-mono text-code text-muted">${EDITED.map((t) => `<div class="whitespace-pre-wrap break-all ${t.startsWith("+") ? "text-accent-emerald-bright" : t.startsWith("-") ? "text-accent-rose" : "text-dim"}">${esc(t)}</div>`).join("")}</div>` : ""}</article>`;
+const scanCard = () => `<section class="enter flex flex-col gap-2 rounded-md border px-3 py-2.5 border-accent-amber/40 bg-accent-amber/5" aria-label="Scan of this turn's changes">
+  <div class="flex items-center justify-between gap-3"><span class="text-app-xs text-ink">Scanned 1 changed file: 1 possible secret and 0 vulnerable dependencies.</span>${button("Review these changes", "secondary", "review-these")}</div>
+  <div class="flex items-baseline gap-2 font-mono text-app-2xs">${chip("secret", "border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright")}<span class="shrink-0 text-ink/80">${FILE}:6</span><span class="min-w-0 truncate text-muted">generic-api-key: Detected a Generic API Key, potentially exposing access to various services and sensitive operations.</span></div>
+</section>`;
+const directive = (text, slash) => `<div class="enter flex items-start gap-2 rounded-lg border border-hairline bg-subtle/60 p-3 font-mono text-app-xs ${slash ? "font-semibold text-accent-cyan-bright" : "text-ink"} leading-relaxed shadow-sm">${icon("mt-0.5 size-4 shrink-0", UP)}<p class="min-w-0 whitespace-pre-wrap break-words">${esc(text)}</p></div>`;
+const statusBadge = (html) => {
+  const terminal = [...document.querySelectorAll("footer span")].find((s) => s.textContent.trim() === "Terminal");
+  terminal.nextElementSibling.insertAdjacentHTML("afterend", `<button type="button" class="enter flex cursor-pointer items-center gap-1 rounded px-1.5 transition hover:bg-hover hover:text-ink">${html}</button><span class="text-dim">|</span>`);
+};
+
+async function secretScene(id) {
+  mountShell(centre);
+  runsOn = { label: "Host · applies directly", tone: "border-accent-rose/35 bg-accent-rose/12 text-accent-rose", dot: "bg-accent-rose" };
+  $("sb-doing").textContent = "Default agent: No session";
+  dock("", false);
+  await sleep(1000); alive(id);
+  await pointTo(q("#dock .grow"), id, 0.2, 0.5);
+  for (let i = 1; i <= ASK.length; i++) { dock(ASK.slice(0, i), false); await sleep(24); alive(id); }
+  await sleep(600); alive(id);
+  await click($("send"), id);
+
+  $("title").textContent = ASK;
+  $("sb-doing").textContent = `Default agent: ${ASK}`;
+  dock("", true);
+  setStatus("working");
+  add(directive(ASK, false));
+  await sleep(1200); alive(id);
+  add(`<div id="read">${readCard(false)}</div>`);
+  await sleep(900); alive(id);
+  $("read").innerHTML = readCard(true);
+  $("tok").textContent = "6.8k tok";
+  await sleep(700); alive(id);
+  add(`<div id="edit">${editCard(false)}</div>`);
+  await sleep(1100); alive(id);
+  $("edit").innerHTML = editCard(true);
+  $("scroller").scrollTop = $("scroller").scrollHeight;
+  $("dirty").textContent = "1 Dirty Files";
+  $("sb-add").textContent = "+3";
+  $("sb-rm").textContent = "-1";
+  $("git-dot").style.display = "";
+  await sleep(1000); alive(id);
+  add(`<div class="enter flex flex-col gap-1 rounded-lg border border-hairline bg-panel p-3 font-mono text-app-xs leading-relaxed text-ink"><p class="whitespace-pre-wrap">Expired tokens are now rejected: ${code(FILE)} turns on ${code("validate_exp")}, and it decodes with the signing secret directly, since ${code("config.jwt_secret")} was empty in the dev setup.</p></div>`);
+  dock("", false);
+  setStatus("done");
+  add(`<div id="pin" class="flex flex-col gap-3">${scanCard()}</div>`);
+  statusBadge(`${icon("size-3 shrink-0 text-accent-amber", GLYPH.search)}<span class="tabular-nums">1 scan hits</span>`);
+  await sleep(2600); alive(id);
+  await click($("review-these"), id);
+
+  const at = (html) => { $("pin").insertAdjacentHTML("beforebegin", html); $("scroller").scrollTop = $("scroller").scrollHeight; };
+  dock("", true);
+  setStatus("working");
+  at(directive(`/review ${SHA}..`, true));
+  await sleep(1000); alive(id);
+  const st = parts.map(() => ({ status: "waiting", activity: "starting", calls: 0, clock: "" }));
+  st.span = "0s";
+  at(`<div id="wf2"></div>`);
+  let step = "Preparing the brief";
+  const draw = (active) => { $("wf2").innerHTML = card(st, step, active, LEAK.label); $("scroller").scrollTop = $("scroller").scrollHeight; };
+  const t0 = performance.now();
+  for (const [i, a] of parts.entries()) {
+    if (i === 5) { step = "Checking the suggested patches"; draw(true); await sleep(900); alive(id); }
+    Object.assign(st[i], { status: "running", activity: "starting", calls: 0, clock: "0s" });
+    const start = performance.now(), span = a.ms / 2;
+    while (performance.now() - start < span) {
+      const el = performance.now() - start;
+      st[i].calls = Math.min(a.calls - 1, Math.floor((el / span) * a.calls));
+      st[i].activity = el < 200 ? "starting" : a.acts[Math.floor(el / 500) % a.acts.length];
+      st[i].clock = clock(el * 36);
+      st.span = clock((performance.now() - t0) * 36);
+      draw(true);
+      await sleep(250); alive(id);
+    }
+    Object.assign(st[i], { status: "done", activity: "done", calls: a.calls, clock: a.time });
+    draw(true);
+    await sleep(250); alive(id);
+  }
+  st.span = "4m 12s";
+  draw(false);
+  at(message(LEAK));
+  $("pin").insertAdjacentHTML("afterbegin", reviewCard(LEAK));
+  dock("", false);
+  setStatus("done");
+  statusBadge(`${icon("size-3 shrink-0 text-accent-rose", GLYPH.search)}<span class="tabular-nums">1 open findings</span><span class="text-dim">·</span><span class="tabular-nums text-accent-rose">1 critical or high</span>`);
+  const sc = $("scroller");
+  sc.scrollTop += ($("pin").getBoundingClientRect().top - sc.getBoundingClientRect().top) / ($("stage").getBoundingClientRect().width / 1280) - 12;
+  await sleep(2400); alive(id);
+  await pointTo($("apply-1"), id);
+  await sleep(4200); alive(id);
+}
+
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

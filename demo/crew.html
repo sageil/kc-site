@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Crew Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const PROMPT = "Add retries with backoff to outgoing webhooks. Map it first, test it, and get it reviewed.";
+const DELEGATE = ["M7 11.5V14m0-2.5v-6a1.5 1.5 0 1 1 3 0m-3 6a1.5 1.5 0 0 0-3 0v2a7.5 7.5 0 0 0 15 0v-5a1.5 1.5 0 0 0-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 0 1 3 0v1m0 0V11m0-5.5a1.5 1.5 0 0 1 3 0v3m0 0V11"];
+const UP = ["M12 20V5.2", "m5.6 11.6 6.4-6.4 6.4 6.4"];
+const CLIP = ["M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"];
+const DOWN = ["m6 9 6 6 6-6"];
+const T = {
+  cyan: { text: "text-accent-cyan-bright", dot: "bg-accent-cyan", edge: "border-l-accent-cyan", track: "border border-accent-cyan/25 p-0.5", bar: "bg-linear-to-r from-accent-cyan to-accent-cyan-bright shadow-sm shadow-accent-cyan", sel: "border-accent-cyan/60", hover: "hover:border-accent-cyan/40", hoverText: "hover:text-accent-cyan-bright", rail: "bg-accent-cyan/45" },
+  purple: { text: "text-accent-purple-bright", dot: "bg-accent-purple", edge: "border-l-accent-purple", track: "border border-accent-purple/25 p-0.5", bar: "bg-linear-to-r from-accent-purple to-pink-400 shadow-sm shadow-accent-purple", sel: "border-accent-purple/60", hover: "hover:border-accent-purple/40", hoverText: "hover:text-accent-purple-bright", rail: "bg-accent-purple/45" },
+  emerald: { text: "text-accent-emerald-bright", dot: "bg-accent-emerald", edge: "border-l-accent-emerald", track: "border border-accent-emerald/25 p-0.5", bar: "bg-linear-to-r from-accent-emerald to-accent-emerald-bright shadow-sm shadow-accent-emerald", sel: "border-accent-emerald/60", hover: "hover:border-accent-emerald/40", hoverText: "hover:text-accent-emerald-bright", rail: "bg-accent-emerald/45" },
+};
+const crew = [
+  { name: "@explorer", tone: "cyan", desc: "Find everything that sends a webhook", acts: ["query_code_graph", "read_file", "shell"], calls: 9, tok: "4.1k", secs: 38, ms: 3200 },
+  { name: "@test-writer", tone: "purple", desc: "Cover the retry path with tests", acts: ["read_file", "write_file", "shell"], calls: 12, tok: "7.3k", secs: 72, ms: 5200 },
+  { name: "@reviewer", tone: "emerald", desc: "Review the retry branch", acts: ["read_file", "query_code_graph", "thinking"], calls: 14, tok: "9.8k", secs: 91, ms: 6400 },
+];
+const clock = (secs) => (secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, "0")}s`);
+const PROVIDERS = ["Same as the session", "Ollama Local", "DeepSeek", "ChatGPT"];
+const MODELS = ["gpt-5", "gpt-5-mini", "gpt-5-codex"];
+const REVIEW_PARTS = [
+  ["review-context", "Reads the project once and writes the brief every review part shares: untrusted input, security patterns and conventions."],
+  ["review-security", "Finds vulnerabilities the change introduces, one class at a time, and sorts the dependency and secret scanners' hits."],
+  ["review-quality", "Finds correctness and maintainability problems the change introduces."],
+  ["review-practices", "Finds departures from the language's and framework's best practices."],
+  ["review-custom", "Checks the change against the rules in .koda/review-rules.md, AGENTS.md and CLAUDE.md, and only those."],
+  ["review-challenge", "Tries to prove each finding wrong; findings scored under the threshold are dropped."],
+];
+const entries = (model) => [
+  ["This project", "explorer", "Maps the code before anyone edits it: callers, tests, where a change lands.", "", "qwen3-coder:30b"],
+  ["This project", "test-writer", "Writes the tests a change needs and runs them.", "", "deepseek-chat"],
+  ["This project", "reviewer", "After a change is ready: review the branch and report findings, most severe first.", "", model || "same as the session"],
+  ["Global", "general-purpose", "General-purpose agent for researching complex questions, searching for files and content, and executing multi-step tasks.", "built-in", "session's model"],
+  ["Global", "docs-writer", "Updates the README and docs for a change.", "", "same as the session"],
+  ...REVIEW_PARTS.map(([n, d]) => ["Review", n, d, "built-in", "same as the session"]),
+];
+const INSTRUCTIONS = "You review a branch against main. Read the diff, then the code around each change. Report findings most severe first, each with its file and line, what breaks and how to fix it. Say plainly when there is nothing to report.";
+const INPUT = "w-full rounded-md border border-hairline bg-subtle px-2.5 py-1.5 text-app-sm text-ink outline-none placeholder:text-dim focus:border-accent-purple/60";
+const DROP_TRIGGER = "flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded border border-hairline bg-subtle px-2.5 py-1 text-left font-mono text-app-2xs outline-none transition hover:bg-hover focus:border-accent-cyan/60";
+const DROP_PANEL = "absolute z-40 flex max-h-80 w-max min-w-full max-w-[28rem] flex-col overflow-hidden rounded-lg border border-hairline bg-elevated elevated-shadow left-0 top-full mt-1.5";
+const drop = (id, value, cls, placeholder, options) => `<div class="relative min-w-0 ${cls}"><button id="${id}" type="button" class="${DROP_TRIGGER}"><span class="${value ? "grow truncate font-semibold text-ink" : "grow truncate text-dim"}">${value || placeholder}</span>${icon("size-2.5 shrink-0 text-muted", DOWN)}</button>${options ? `<div class="${DROP_PANEL}"><ul class="flex flex-col overflow-y-auto p-1" role="listbox">${options.map((o) => `<li role="presentation"><button type="button" data-option="${o}" class="flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-md px-2.5 text-left"><span class="${o === value || (!value && o === placeholder) ? "w-3.5 shrink-0 text-accent-cyan-bright" : "invisible w-3.5 shrink-0"}">${icon("size-3.5", GLYPH.check)}</span><span class="min-w-0 truncate font-mono text-app-xs ${o === value || (!value && o === placeholder) ? "text-accent-cyan-bright" : "text-muted"}">${o}</span></button></li>`).join("")}</ul></div>` : ""}</div>`;
+const chipBtn = (id, label, value, open) => `<button type="button" data-chip="${id}" class="${open ? "flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-accent-purple/50 bg-accent-purple/10 px-2.5 py-0.5 font-mono text-app-2xs" : "flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-hairline bg-subtle px-2.5 py-0.5 font-mono text-app-2xs transition hover:border-accent-purple/40"}"><span class="shrink-0 text-dim">${label}</span><span class="max-w-72 truncate text-ink/90">${value}</span></button>`;
+const chipPop = (label, caption, body) => `<div class="absolute top-full right-0 left-0 z-50 mt-1.5 flex max-w-[32rem] flex-col gap-2 rounded-lg border border-hairline bg-elevated p-3 elevated-shadow"><span class="text-app-sm font-medium text-ink">${label}</span><span class="text-app-2xs text-dim">${caption}</span>${body}</div>`;
+const picker = (current, open, end, chosen, model) => `<div class="relative"><button id="picker" type="button" class="flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 font-mono text-app-xs text-muted transition hover:bg-hover hover:text-ink"><span class="max-w-64 truncate">${current}</span>${icon("size-3 shrink-0", DOWN)}</button>${open ? `<div class="absolute top-full ${end ? "right-0" : "left-0"} z-50 mt-1.5 flex max-h-[60vh] w-96 max-w-[80vw] flex-col overflow-hidden rounded-lg border border-hairline bg-elevated elevated-shadow">
+  <div class="flex shrink-0 items-center gap-2 border-b border-hairline px-3 py-2">${icon("size-3 shrink-0 text-dim", GLYPH.search)}<span class="min-w-0 grow font-mono text-app-xs text-dim">Search agents</span></div>
+  <div class="flex min-h-0 grow flex-col overflow-y-auto py-1" role="listbox">${["This project", "Global", "Review"].map((g) => `<div class="flex flex-col px-3 pt-2 pb-0.5"><span class="font-mono text-app-3xs tracking-wider text-dim uppercase">${g}</span>${g === "Review" ? '<span class="text-app-3xs text-dim">/review runs these; /review-security, -quality, -practices and -rules run one reviewer between context and challenge</span>' : ""}</div>${entries(model).filter((e) => e[0] === g).map(([, n, d, badge, trailing]) => `<button type="button" data-agent="${n}" class="${chosen === n ? "flex w-full cursor-pointer flex-col gap-0.5 border-l-2 border-accent-purple bg-accent-purple/10 px-3 py-1.5 text-left" : "flex w-full cursor-pointer flex-col gap-0.5 border-l-2 border-transparent px-3 py-1.5 text-left transition hover:bg-hover"}"><span class="flex items-center gap-1.5 font-mono text-app-xs text-ink"><span class="truncate">@${n}</span>${badge ? `<span class="shrink-0 text-app-3xs tracking-wider text-dim uppercase">${badge}</span>` : ""}<span class="ml-auto shrink-0 text-app-3xs text-dim">${trailing}</span></span><span class="line-clamp-1 text-app-2xs text-dim">${d}</span></button>`).join("")}`).join("")}</div>
+  <button type="button" class="flex shrink-0 cursor-pointer items-center gap-2 border-t border-hairline px-3 py-2 text-left font-mono text-app-xs text-accent-purple-bright transition hover:bg-hover">${icon("size-3", GLYPH.plus)}New agent</button>
+</div>` : ""}</div>`;
+
+function agentsScreen(v) {
+  const head = `<div class="flex shrink-0 items-start justify-between gap-3 border-b border-hairline px-5 py-4"><div class="flex flex-col gap-1"><h1 class="text-app font-semibold text-ink">Agents</h1><p class="text-app-sm leading-relaxed text-muted">Specialists the main agent can hand work to</p></div><span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase border-hairline bg-subtle text-muted"><span class="truncate">3 in this project · 1 global</span></span></div>`;
+  const body = v.picked ? `<div class="flex shrink-0 flex-col gap-2 border-b border-hairline px-5 pt-3 pb-3">
+      <div class="flex items-center gap-2"><span class="min-w-0 grow bg-transparent font-mono text-app font-semibold text-ink">${v.picked}</span>${picker("@" + v.picked, false, true, v.picked, v.model)}</div>
+      <div class="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-app-sm text-muted">After a change is ready: review the branch and report findings, most severe first.</div>
+      <div id="chips" role="group" class="relative flex flex-wrap items-center gap-1.5">${chipBtn("context", "context", "starts fresh", false)}${chipBtn("model", "model", v.model || "same as the session", v.chip === "model")}${chipBtn("tools", "tools", "all of the main agent's", false)}${v.chip === "model" ? chipPop("model", "What it runs on. Same as the session follows whatever the session uses.", `<div id="model-row" class="flex flex-wrap items-center gap-2">${drop("agent-provider", v.provider, "w-52", "Same as the session", v.drop === "provider" ? PROVIDERS : null)}${v.provider ? drop("agent-model", v.model, "w-72", "Choose a model", v.drop === "model" ? MODELS : null) : ""}</div>`) : ""}</div>
+    </div>
+    <div class="flex min-h-0 grow flex-col gap-1.5 overflow-y-auto px-5 py-3"><div class="flex items-baseline justify-between gap-2"><span class="font-mono text-app-3xs tracking-wider text-dim uppercase">Instructions</span><span class="font-mono text-app-3xs text-dim tabular-nums">${INSTRUCTIONS.length} characters</span></div><div class="${INPUT} min-h-40 grow resize-none font-mono text-app-xs leading-relaxed">${INSTRUCTIONS}</div></div>` : `<div class="flex shrink-0 items-center gap-2 border-b border-hairline px-5 py-3">${picker("Choose an agent", v.open, false, null, "")}</div>
+    <div class="min-h-0 grow overflow-y-auto"><div class="flex max-w-xl flex-col gap-2 px-5 py-6 text-app-sm text-muted"><p class="font-medium text-ink">Pick an agent, or make a new one.</p><p>The main agent reads each agent's “use when” line and delegates to it on its own. Agents in this project live in .koda/agents and are shared with everyone who works on it; global ones are available in all projects.</p><p>The review agents run only when you start a review. Override one to change its model, add instructions or give it more read-only tools.</p></div></div>`;
+  const action = "flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition disabled:cursor-not-allowed disabled:opacity-50";
+  return `<div class="flex min-h-0 grow flex-col overflow-hidden bg-canvas">${head}${body}
+    <footer class="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-3 border-t border-hairline bg-panel px-4 py-2"><div class="flex min-w-0 items-center gap-2 font-mono text-app-2xs text-muted">${v.picked ? `<span>/Users/dev/code/acme-api/.koda/agents/${v.picked}.md</span>` : ""}</div><div class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">${v.picked ? `<button type="button" class="${action} border-accent-rose/40 bg-accent-rose/10 text-accent-rose hover:bg-accent-rose/20">Delete</button><button id="save" type="button" class="${action} border-accent-cyan/45 bg-accent-cyan/10 font-medium text-accent-cyan-bright hover:border-accent-cyan hover:bg-accent-cyan/18">${icon("size-3.5 shrink-0", GLYPH.check)}Save</button>` : ""}<button type="button" class="${action} border-hairline bg-subtle text-ink/80 hover:bg-hover hover:text-ink">${icon("size-3.5 shrink-0", GLYPH.close)}Close</button></div></footer>
+  </div>`;
+}
+
+const kbd = (k) => `<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">${k}</kbd>`;
+const dockFoot = (running) => `<div class="mt-1.5 flex items-center justify-between gap-3 border-t border-hairline-soft px-1 pt-1.5 text-app-2xs text-dim"><button type="button" class="flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 font-mono transition border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright"><span class="size-1.5 shrink-0 rounded-full bg-accent-amber"></span><span class="truncate">Host · asks first</span>${icon("size-2.5 shrink-0", DOWN)}</button><div class="flex shrink-0 items-center gap-2 font-mono">${(running ? [["⌘↵", "Steer"], ["⇧⌘↵", "Queue"], ["Esc", "Cancel"]] : [["⌘↵", "Send"], ["Esc", "Cancel"]]).map(([k, a]) => `<span class="flex items-center gap-1">${kbd(k)}${a}</span>`).join("")}<button type="button" class="flex cursor-pointer items-center gap-1 rounded border border-elevated bg-hover px-2.5 py-1 text-app-xs font-medium text-ink transition hover:bg-elevated">Send${icon("size-3 text-dim", UP)}</button></div></div>`;
+const arrow = (left) => `<button type="button" class="flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright">${icon("size-3.5", left ? GLYPH.chevronLeft : GLYPH.chevronRight)}</button>`;
+const sessionCentre = `
+  <div id="strip" class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4"><div class="flex min-w-0 items-center gap-2"><span class="truncate font-sans text-app-xs text-muted">${PROMPT}</span></div><div class="flex shrink-0 items-center gap-3 font-mono text-app-xs text-muted"><span class="flex items-center gap-1">${icon("size-3.5 text-accent-cyan-bright", GLYPH.bolt)}Plan mode: <strong class="text-ink">OFF</strong></span><button type="button" class="flex cursor-default items-center gap-1.5 rounded px-1.5 py-0.5 transition hover:bg-hover"><strong id="tok" class="text-accent-cyan-bright">3.4k tok</strong><span class="text-dim">·</span><span>Cache hit <strong class="text-ink">68%</strong></span></button></div></div>
+  <div id="fleet" class="relative flex shrink-0 items-center gap-2 border-b border-hairline bg-panel px-2 py-1.5" aria-label="Subagent fleet" style="display:none">${arrow(true)}<div id="fleet-cards" class="koda-fleet flex flex-1 items-center gap-3 overflow-x-auto py-1"></div>${arrow(false)}</div>
+  <div class="flex min-h-0 grow flex-col overflow-hidden"><div id="scroller" class="h-full overflow-y-auto p-4"><div id="stream" class="mx-auto flex w-full flex-col gap-3"></div></div></div>
+  <div class="shrink-0 bg-canvas px-3 pt-2 pb-3"><div class="mx-auto w-full max-w-3xl"><div id="dock" class="flex w-full flex-col rounded-lg border border-hairline bg-panel/95 p-2 elevated-shadow backdrop-blur-xl transition"><div class="relative flex items-start gap-2 px-1">${icon("size-4 shrink-0 text-accent-indigo-bright", GLYPH.sparkle)}<div class="min-w-0 grow py-1 text-app-xs leading-relaxed text-dim" style="min-height:22px">Message the agent · / for commands · @ for agents · ⌘↵ to send</div><span class="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-dim transition hover:bg-hover hover:text-ink">${icon("size-4", CLIP)}</span>${kbd("⌘K")}</div><div id="dock-foot"></div></div></div></div>`;
+
+const ROW = "flex w-full min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left font-mono text-app-xs transition hover:bg-subtle";
+const step = (verb, subject, extra, count, shell) => `<div class="enter relative scroll-mt-3"><span class="absolute top-[9px] left-[-17px] size-2 rounded-full border border-dim bg-panel"></span>${shell ? `<details class="group/step"><summary class="${ROW} cursor-pointer list-none select-none">` : `<button type="button" class="${ROW} cursor-pointer">`}<span class="min-w-0 grow truncate"><span class="text-muted">${verb} </span><span class="text-ink/90">${subject}</span>${extra ? `<span class="text-dim"> ${extra}</span>` : ""}</span><span class="flex shrink-0 items-center gap-1.5 text-app-2xs text-dim"><span class="tabular-nums">${count}</span>${shell ? icon("size-3 shrink-0 transition-transform group-open/step:rotate-90", GLYPH.chevronRight) : ""}</span>${shell ? "</summary></details>" : "</button>"}</div>`;
+const timeline = (rows, rail = "bg-hairline") => `<div class="relative flex flex-col pl-5"><span class="absolute top-2.5 bottom-2.5 left-[7px] w-px ${rail}"></span>${rows.join("")}</div>`;
+const add = (html) => { $("stream").insertAdjacentHTML("beforeend", html); $("scroller").scrollTop = $("scroller").scrollHeight; };
+const userMessage = (text, enter) => `<div class="${enter ? "enter " : ""}flex items-start gap-2 rounded-lg border border-hairline bg-subtle/60 p-3 font-mono text-app-xs font-semibold leading-relaxed text-accent-cyan-bright shadow-sm">${icon("mt-0.5 size-4 shrink-0", UP)}<div class="flex min-w-0 flex-col gap-2"><div class="min-w-0 font-normal"><div class="flex min-w-0 flex-col gap-2 wrap-anywhere"><p class="whitespace-pre-wrap">${text}</p></div></div></div></div>`;
+
+function delegationCard(st) {
+  const running = st.filter((s) => s.status === "running").length, done = st.filter((s) => s.status === "done").length;
+  const headline = running ? `Waiting on ${crew.length} sub-agents · ${done} done` : `${crew.length} sub-agents finished`;
+  return `<details class="group/fold flex w-full flex-col overflow-hidden rounded-lg border border-hairline bg-panel transition hover:border-dim/40"${running ? " open" : ""}>
+    <summary class="flex cursor-pointer list-none items-center gap-2.5 p-2.5 font-mono text-app-xs select-none">${running ? '<span class="size-3 shrink-0 animate-spin rounded-full border-[1.5px] border-hairline border-t-accent-cyan"></span>' : icon("size-3 shrink-0 text-dim transition-transform group-open/fold:rotate-90", GLYPH.chevronRight)}<span class="min-w-0 truncate ${running ? "text-accent-cyan-bright" : "text-muted"}">${headline}</span><span class="ml-auto shrink-0 text-app-2xs text-dim tabular-nums">${clock(running ? st.secs : crew[2].secs)}</span></summary>
+    <div class="flex flex-col border-t border-hairline px-1.5 py-1.5">${crew.map((a, i) => `<button type="button" data-row="${i}" class="flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded px-1.5 py-1 text-left font-mono text-app-xs transition hover:bg-subtle"><span class="size-2 shrink-0 rounded-full ${st[i].status === "running" ? "animate-pulse " : ""}${T[a.tone].dot}"></span><span class="shrink-0 ${T[a.tone].text}">${a.name}</span><span class="min-w-0 grow truncate text-muted">${a.desc}</span><span class="max-w-40 shrink-0 truncate text-app-2xs text-dim">${st[i].activity}</span><span class="w-16 shrink-0 text-right text-app-2xs text-dim tabular-nums">${st[i].calls} calls</span><span class="w-14 shrink-0 text-right text-app-2xs text-dim tabular-nums">${clock(st[i].status === "done" ? a.secs : st.secs)}</span>${icon("size-3 shrink-0 text-dim", GLYPH.chevronRight)}</button>`).join("")}</div></details>`;
+}
+function fleetCards(st) {
+  return crew.map((a, i) => {
+    const run = st[i].status === "running", t = T[a.tone];
+    return `<div class="flex min-w-[240px] max-w-xs flex-1 flex-col gap-1.5 rounded border p-2 transition ${run ? "border-hairline bg-subtle" : "border-hairline-soft bg-panel"} ${t.hover}"><div class="flex items-center justify-between gap-2 font-mono text-app-2xs"><div class="flex min-w-0 items-center gap-1.5 font-medium ${t.text}"><span class="inline-block size-1.5 shrink-0 rounded-full ${t.dot} ${run ? "animate-pulse" : ""}"></span><span class="truncate">${a.name}</span></div><span class="max-w-[110px] truncate font-mono text-app-3xs text-muted">${a.desc}</span></div>
+      <div class="h-1.5 w-full overflow-hidden rounded-full bg-hover ${t.track}"><div class="h-full rounded-full ${run ? "koda-indeterminate w-2/5" : "w-full"} ${t.bar}"></div></div>
+      <div class="flex items-center justify-between font-mono text-app-3xs text-muted"><span>${st[i].calls} calls · ${run ? (st[i].calls * 0.6).toFixed(1) + "k" : a.tok} tok</span><div class="flex items-center gap-1.5"><button type="button" data-inspect="${i}" class="cursor-pointer text-muted transition ${t.hoverText}">Inspect</button><span class="text-dim/60">•</span>${run ? '<button type="button" class="cursor-pointer text-muted transition hover:text-accent-amber-bright">Stop</button>' : '<span class="text-muted">Done</span>'}</div></div></div>`;
+  }).join("");
+}
+function tree(st, phase, viewing) {
+  return `<section class="shrink-0 border-b border-hairline p-3"><div class="mb-2 flex items-center justify-between font-mono text-app-2xs text-ink"><div class="flex items-center gap-1 font-semibold">${icon("size-3.5 text-accent-purple-bright", DELEGATE)}<span>Sub-Agent Delegation Tree</span></div><div class="flex items-center gap-2 text-app-3xs"><span class="text-accent-purple-bright">${st ? crew.length : 0} delegated</span><button type="button" class="cursor-pointer text-muted transition hover:text-ink">Manage</button></div></div>
+    <div class="flex flex-col gap-2 rounded-md border border-hairline bg-subtle p-2.5 font-mono text-app-2xs"><button type="button" class="${viewing == null ? "flex w-full cursor-pointer items-center gap-1.5 text-left text-ink" : "flex w-full cursor-pointer items-center gap-1.5 text-left text-ink opacity-70 transition hover:opacity-100"}"><span class="size-2 shrink-0 rounded-full bg-agent-main"></span><span class="font-bold text-agent-main">Main agent</span><span class="ml-auto text-app-3xs text-muted">${phase}</span></button>
+    <div class="ml-1 flex flex-col gap-1.5 border-l border-agent-main/40 pl-3">${st ? crew.map((a, i) => `<button type="button" class="${viewing === i ? `flex w-full cursor-pointer items-center justify-between gap-2 rounded bg-hover px-1 -mx-1 text-left ${T[a.tone].text}` : `flex w-full cursor-pointer items-center justify-between gap-2 text-left transition hover:opacity-80 ${T[a.tone].text}`}"><span class="flex min-w-0 items-center gap-1.5"><span class="text-dim">↳</span><span class="inline-block size-1.5 shrink-0 rounded-full ${T[a.tone].dot} ${st[i].status === "running" ? "animate-pulse" : ""}"></span><span class="truncate">${a.name}</span></span><span class="shrink-0 text-app-3xs text-muted">${st[i].activity}</span></button>`).join("") : '<span class="text-app-3xs text-dim">No delegations yet</span>'}</div></div></section>`;
+}
+const dockRow = (selected, border, hover) => `flex w-full cursor-pointer items-center justify-between gap-2 rounded border p-1.5 text-left transition ${selected ? `${border} bg-hover` : `border-hairline bg-subtle ${hover}`}`;
+function dockList(st, phase, viewing) {
+  return `<div class="flex max-h-40 flex-col gap-1.5 overflow-y-auto font-mono text-app-2xs"><button type="button" class="${dockRow(viewing == null, "border-agent-main/60", "hover:border-agent-main/40")}"><div class="flex min-w-0 items-center gap-1.5"><span class="inline-block size-2 shrink-0 rounded-full bg-agent-main"></span><span class="truncate font-medium text-agent-main">Main agent</span></div><span class="shrink-0 rounded border px-1 text-app-3xs uppercase border-hairline bg-subtle text-muted">${phase}</span></button>
+    ${st ? crew.map((a, i) => `<button type="button" class="${dockRow(viewing === i, T[a.tone].sel, T[a.tone].hover)}"><div class="flex min-w-0 items-center gap-1.5"><span class="inline-block size-2 shrink-0 rounded-full ${T[a.tone].dot} ${st[i].status === "running" ? "animate-pulse" : ""}"></span><span class="truncate font-medium ${T[a.tone].text}">${a.name}</span></div><span class="shrink-0 rounded border px-1 text-app-3xs uppercase border-hairline bg-subtle text-muted">${st[i].status === "running" ? "Running" : "Done"}</span></button>`).join("") : '<span class="px-1.5 py-1 text-dim">No subagents delegated</span>'}</div>`;
+}
+function renderCrew(st, phase, viewing) {
+  $("delegation").innerHTML = tree(st, phase, viewing);
+  $("agent-dock").innerHTML = `<div class="mb-2 flex items-center justify-between font-mono text-app-3xs font-semibold tracking-wider text-muted uppercase"><span>Agents</span><span class="text-accent-cyan-bright">${st ? st.filter((s) => s.status === "running").length : 0} active</span></div>${dockList(st, phase, viewing)}`;
+  if (st) { $("fleet").style.display = ""; $("fleet-cards").innerHTML = fleetCards(st); }
+  const card = $("deleg");
+  if (card && st) card.outerHTML = `<div id="deleg">${delegationCard(st)}</div>`;
+}
+function setStatus(kind, waiting) {
+  const s = $("status");
+  const base = "flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-app-2xs font-medium ";
+  const stop = $("stop");
+  const live = kind === "working";
+  stop.disabled = !live;
+  stop.className = live ? "flex cursor-pointer items-center gap-1 rounded border border-hairline bg-subtle px-2.5 py-1 text-app-xs text-ink/80 transition hover:bg-hover hover:text-ink" : "flex cursor-not-allowed items-center gap-1 rounded border border-hairline bg-subtle/50 px-2.5 py-1 text-app-xs text-dim opacity-60";
+  if (live) { const label = waiting ? `Waiting on ${waiting}` : "Working"; s.setAttribute("aria-label", `Run status: ${label}`); s.className = base + "koda-pulse-glow border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan-bright"; s.innerHTML = `<span class="koda-star relative inline-flex shrink-0 items-center justify-center size-3.5 text-accent-indigo-bright"><svg class="animate-sparkle-pulse block size-full" viewBox="0 0 24 24" fill="currentColor"><path d="${GLYPH.sparkle[0]}"/><path d="${GLYPH.sparkle[1]}"/></svg></span><span>${label}</span>`; return; }
+  s.setAttribute("aria-label", "Run status: Finished");
+  s.className = base + "border-hairline bg-subtle text-accent-emerald-bright"; s.innerHTML = '<span class="inline-block size-1.5 shrink-0 rounded-full bg-accent-emerald"></span><span>Finished</span>';
+}
+function setCtx(k, pct) { $("ctx-label").innerHTML = `${k} / 200.0k (<span class="text-accent-cyan-bright">${pct}%</span>)`; $("ctx-bar").style.width = pct + "%"; }
+const setDock = (running) => ($("dock-foot").outerHTML = `<div id="dock-foot">${dockFoot(running)}</div>`);
+
+const q = (s) => document.querySelector(s);
+async function play(id) {
+  const view = { picked: null, open: false, chip: null, provider: "", model: "", drop: null };
+  const show = (patch) => { Object.assign(view, patch); mountShell(agentsScreen(view)); };
+  show({});
+  await sleep(1200); alive(id);
+  await click($("picker"), id);
+  show({ open: true }); await sleep(1100); alive(id);
+  await click(q('[data-agent="reviewer"]'), id);
+  show({ open: false, picked: "reviewer" }); await sleep(1500); alive(id);
+  await click(q('[data-chip="model"]'), id);
+  show({ chip: "model" }); await sleep(900); alive(id);
+  await click($("agent-provider"), id);
+  show({ drop: "provider" }); await sleep(800); alive(id);
+  await click(q('[data-option="ChatGPT"]'), id);
+  show({ drop: null, provider: "ChatGPT" }); await sleep(800); alive(id);
+  await click($("agent-model"), id);
+  show({ drop: "model" }); await sleep(800); alive(id);
+  await click(q('[data-option="gpt-5"]'), id);
+  show({ drop: null, model: "gpt-5" }); await sleep(1100); alive(id);
+  await click($("save"), id);
+  show({ chip: null }); await sleep(600); alive(id);
+
+  mountShell(sessionCentre, { inspector: true });
+  $("sb-doing").textContent = `acme-api: ${PROMPT}`;
+  setDock(true);
+  $("changed").innerHTML = '<p class="px-1 text-dim">No changes in this project.</p>';
+  setCtx("6.2k", 3);
+  renderCrew(null, "Working");
+  setStatus("working");
+  add(userMessage(PROMPT, true));
+  await sleep(900); alive(id);
+  add(`<details class="enter group min-w-0"><summary class="flex min-w-0 cursor-pointer list-none items-center gap-2 text-app-2xs text-dim select-none"><span class="text-app-3xs transition-transform group-open:rotate-90">▶</span><span class="shrink-0 font-medium">Thinking</span><span class="min-w-0 truncate group-open:hidden">· Three independent parts: map the senders, write the tests, review the result.</span></summary></details>`);
+  await sleep(900); alive(id);
+  add(timeline([step("Read", "src/webhooks/send.rs", "lines 1–80", "80 lines")]));
+  await sleep(900); alive(id);
+
+  const st = crew.map(() => ({ status: "running", activity: "starting", calls: 0 }));
+  st.secs = 0;
+  add(`<div id="deleg">${delegationCard(st)}</div>`);
+  renderCrew(st, "Working");
+  setStatus("working", crew.length);
+  const t0 = performance.now();
+  while (st.some((s) => s.status === "running")) {
+    await sleep(500); alive(id);
+    const el = performance.now() - t0;
+    st.secs = Math.min(crew[2].secs, Math.floor((el / crew[2].ms) * crew[2].secs));
+    crew.forEach((a, i) => {
+      if (st[i].status !== "running") return;
+      if (el >= a.ms) { Object.assign(st[i], { status: "done", activity: "done", calls: a.calls }); return; }
+      st[i].calls = Math.min(a.calls - 1, Math.floor((el / a.ms) * a.calls));
+      st[i].activity = a.acts[Math.floor(el / 900) % a.acts.length];
+    });
+    $("tok").textContent = `${(3.4 + el / 400).toFixed(1)}k tok`;
+    setCtx(`${(6.2 + el / 700).toFixed(1)}k`, Math.min(14, 3 + Math.floor(el / 600)));
+    renderCrew(st, "Working");
+    setStatus("working", st.filter((s) => s.status === "running").length);
+  }
+  setStatus("working");
+  await sleep(1200); alive(id);
+
+  await click(q('[data-inspect="2"]'), id);
+  const reviewer = crew[2];
+  renderCrew(st, "Working", 2);
+  $("scroller").scrollTop = 0;
+  $("stream").innerHTML = `<div class="sticky -top-4 z-10 -mx-4 -mt-4 flex items-center gap-3 border-b border-l-[3px] border-hairline ${T.emerald.edge} bg-canvas/95 px-4 py-2 font-mono text-app-xs backdrop-blur"><button id="back" type="button" class="flex shrink-0 cursor-pointer items-center gap-1 rounded border border-hairline bg-subtle px-2 py-1 text-muted transition hover:bg-hover hover:text-ink">${icon("size-3.5", GLYPH.chevronLeft)}Main agent</button><span class="size-2 shrink-0 rounded-full ${T.emerald.dot}"></span><span class="shrink-0 font-semibold ${T.emerald.text}">${reviewer.name}</span><span class="min-w-0 truncate text-muted">${reviewer.desc}</span><span class="ml-auto shrink-0 text-app-2xs text-dim tabular-nums">${reviewer.calls} calls · ${reviewer.tok} tok</span><span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase border-hairline bg-subtle text-muted"><span class="truncate">done</span></span></div>
+    ${userMessage("Review the retry branch against main. Report findings, most severe first, with the file and line for each.", false)}
+    ${timeline([step("Ran", "git diff main...retry", "", "214 lines", true), step("Read", "src/webhooks/retry.rs", "lines 1–60", "60 lines"), step("Explored the code:", "should_retry", "", "12 lines"), step("Read", "tests/webhooks.rs", "", "48 lines")], T.emerald.rail)}
+    <div class="flex flex-col gap-1 rounded-lg border border-hairline bg-panel p-3 font-mono text-app-xs leading-relaxed text-ink"><div class="flex min-w-0 flex-col gap-2 wrap-anywhere"><h2 class="text-app font-semibold text-ink whitespace-pre-wrap">1 finding</h2><p class="whitespace-pre-wrap"><strong>Medium</strong> · <code class="rounded bg-subtle px-1 font-mono text-accent-cyan-bright">src/webhooks/retry.rs:20</code> — a 410 Gone reply is retried; it should stop and disable the endpoint.</p></div></div>`;
+  await sleep(3600); alive(id);
+  await click($("back"), id);
+  renderCrew(st, "Working");
+  $("stream").innerHTML = "";
+  add(userMessage(PROMPT, false));
+  add(timeline([step("Read", "src/webhooks/send.rs", "lines 1–80", "80 lines")]));
+  add(`<div id="deleg">${delegationCard(st)}</div>`);
+  add(`<div class="enter flex flex-col gap-1 rounded-lg border border-hairline bg-panel p-3 font-mono text-app-xs leading-relaxed text-ink"><div class="flex min-w-0 flex-col gap-2 wrap-anywhere"><h2 class="text-app font-semibold text-ink whitespace-pre-wrap">Retries are in</h2><p class="whitespace-pre-wrap">Backoff doubles from 250 ms up to 5 tries. @test-writer added 4 tests and they pass. @reviewer found one issue, a 410 Gone reply was being retried, and it's fixed.</p></div></div>`);
+  setStatus("done");
+  setDock(false);
+  renderCrew(st, "Finished");
+  await sleep(4200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#18202e"/><stop offset="1" stop-color="#080b11"/></linearGradient>
+<linearGradient id="acc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset=".55" stop-color="#6366f1"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/><rect x="100" y="100" width="824" height="824" rx="185" fill="none" stroke="#ffffff" stroke-opacity=".08" stroke-width="4"/>
+<path d="M440 286C372 286 366 322 366 380L366 444C366 488 344 512 300 512C344 512 366 536 366 580L366 644C366 702 372 738 440 738" fill="none" stroke="#e2e8f0" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M440 286C372 286 366 322 366 380L366 444C366 488 344 512 300 512C344 512 366 536 366 580L366 644C366 702 372 738 440 738" transform="translate(1024 0) scale(-1 1)" fill="none" stroke="#e2e8f0" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(512 512) scale(17) translate(-12 -10)" fill="url(#acc)"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" opacity=".85"/></g>
+</svg>

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode MCP Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const CHEV = ["m6 9 6 6 6-6"];
+const UP = ["M12 20V5.2", "m5.6 11.6 6.4-6.4 6.4 6.4"];
+const CLIP = ["m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"];
+const SETTINGS = ["M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z", "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"];
+const q = (s) => document.querySelector(s);
+const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+let was = new Set(), now = new Set();
+const ent = (key) => { now.add(key); return was.has(key) ? "" : "enter "; };
+const settle = () => { was = now; now = new Set(); };
+
+const KIND = {
+  primary: "border-accent-cyan/45 bg-accent-cyan/10 font-medium text-accent-cyan-bright hover:border-accent-cyan hover:bg-accent-cyan/18",
+  secondary: "border-hairline bg-subtle text-ink/80 hover:bg-hover hover:text-ink",
+  danger: "border-accent-rose/40 bg-accent-rose/10 text-accent-rose hover:bg-accent-rose/20",
+};
+const button = (label, kind, glyph, id) => `<button type="button" ${id ? `id="${id}"` : ""} class="flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${KIND[kind]}">${glyph ? icon("size-3.5 shrink-0", glyph) : ""}${label}</button>`;
+const kbd = (k) => `<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">${k}</kbd>`;
+const choice = (options, chosen, id) => `<div ${id ? `id="${id}"` : ""} class="flex gap-0.5 self-start rounded-lg border border-hairline bg-canvas p-0.5" role="radiogroup">${options.map((o, i) => `<button type="button" role="radio" data-choice="${esc(o)}" class="${i === chosen ? "cursor-pointer rounded bg-elevated px-2.5 py-1 text-app-2xs text-ink" : "cursor-pointer rounded px-2.5 py-1 text-app-2xs text-dim transition hover:text-muted"}">${o}</button>`).join("")}</div>`;
+const field = (label, value, multiline, id) => `<label class="flex flex-col gap-1"><span class="text-app-2xs text-dim">${label}</span><div ${id ? `id="${id}"` : ""} class="w-full rounded border border-hairline bg-panel px-2 py-1 font-mono text-app-xs text-ink whitespace-pre-wrap" style="min-height:${multiline ? 62 : 26}px">${esc(value)}</div></label>`;
+
+const SERVER_URL = "https://mcp.linear.app/mcp";
+let m;
+const blank = () => ({ servers: [], form: null, problem: "" });
+
+function serverRow(s) {
+  const [said, tone] = { login: ["needs sign-in", "text-accent-amber"], ready: ["ready, 23 tools", "text-accent-cyan-bright"] }[s.status];
+  return `<div class="${ent(`row-${s.name}`)}flex items-center justify-between gap-3 border-t border-hairline-soft pt-2 first:border-t-0">
+    <div class="flex min-w-0 flex-col gap-0.5"><span class="font-mono text-app-xs text-ink">${s.name}<span class="ml-2 text-app-2xs text-dim">yours</span></span><span class="font-mono text-app-2xs ${tone} whitespace-pre-wrap">${said}</span>${s.signing ? `<span class="${ent("signing")}font-mono text-app-2xs text-muted">Finish signing in to ${s.name} in your browser.</span><a class="flex items-center gap-1 self-start font-mono text-app-2xs text-accent-cyan-bright transition hover:text-ink">Open the sign-in page${icon("size-3", GLYPH.external)}</a>` : ""}</div>
+    <div class="flex shrink-0 items-center gap-2">${button("Sign in", "secondary", null, "sign-in")}${button("Sign out", "secondary")}${button("Restart", "secondary")}${button("Disable", "secondary")}${button("Edit", "secondary")}${button("Remove", "danger")}</div>
+  </div>`;
+}
+
+function form(f) {
+  return `<div class="${ent("form")}flex flex-col gap-2 rounded border border-hairline bg-canvas p-3">
+    ${field("Name", f.name, false, "f-name")}
+    ${choice(["Command (stdio)", "URL (HTTP)"], f.http ? 1 : 0, "f-transport")}
+    ${f.http
+      ? field("URL", f.url, false, "f-url") + field("Headers, one `Name: value` per line; `$secret` keeps a value in the keychain", "", true) + field("Client ID, only if the provider asks for one registered for Koda", "", false)
+      : field("Command", "", false) + field("Arguments, one per line", "", true) + field("Environment, one `NAME=value` per line; `$secret` keeps a value in the keychain", "", true)}
+    <span class="text-app-2xs text-dim">Approval: Default follows Settings → Permissions &amp; sandbox → Approvals; Auto asks unless the server marks a tool read-only; Writes asks for anything not read-only; Always asks every call; Never asks.</span>
+    ${choice(["Default (Auto)", "Auto", "Writes", "Always", "Never"], 0)}
+    <div class="flex items-center gap-2">${button("Save server", "primary", GLYPH.check, "save-server")}${button("Cancel", "secondary")}</div>
+  </div>`;
+}
+
+function settings() {
+  const list = m.servers.length ? m.servers.map(serverRow).join("") : '<p class="font-mono text-app-2xs text-dim">No MCP servers yet.</p>';
+  const tail = m.form ? form(m.form) : `<div class="self-start">${button("Add server", "secondary", null, "add-server")}</div>`;
+  const body = `<div class="flex w-full flex-col gap-3 py-3"><p class="text-app-2xs text-dim">Servers in .koda/mcp.toml are listed for the open project and start only after you approve them. Changes apply from the next session.</p>${list}${tail}${m.problem ? `<span class="font-mono text-app-2xs text-accent-rose">${m.problem}</span>` : ""}</div>`;
+  return `<div class="flex min-h-0 grow flex-col overflow-hidden">
+    <div class="flex shrink-0 flex-col bg-canvas">
+      <header class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4"><div class="flex min-w-0 items-center gap-2">${icon("size-4 shrink-0 text-accent-cyan-bright", SETTINGS)}<h1 class="shrink-0 font-mono text-app-xs font-bold text-ink">Preferences</h1><span class="truncate text-app-xs text-muted">~/.config/kc/config.toml</span></div></header>
+      <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline px-5 py-2.5"><button type="button" class="flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 font-mono text-app-xs text-muted transition hover:bg-hover hover:text-ink"><span class="max-w-64 truncate">MCP servers</span>${icon("size-3 shrink-0", CHEV)}</button>
+        <label class="ml-auto flex w-72 max-w-full items-center gap-2 rounded border border-hairline bg-canvas px-2 py-1.5">${icon("size-3.5 shrink-0 text-dim", GLYPH.search)}<span class="min-w-0 grow font-mono text-app-xs text-dim">Search all settings</span></label></div>
+    </div>
+    <div id="body" class="min-h-0 grow overflow-y-auto"><div class="flex w-full flex-col gap-5 px-5 py-5">
+      <div class="flex flex-col gap-1"><h1 class="text-app font-semibold text-ink">MCP servers</h1><p class="text-app-sm leading-relaxed text-muted">Tools from Model Context Protocol servers. Koda speaks MCP 2026-07-28 only.</p></div>
+      <section class="flex flex-col rounded-lg border border-hairline bg-panel"><div class="flex flex-col gap-0.5 rounded-t-lg border-b border-hairline bg-subtle px-4 py-3"><h2 class="text-app-sm font-semibold text-ink">Servers</h2><p class="text-app-xs text-muted">Your servers apply to every project; a project can add its own in .koda/mcp.toml.</p></div>
+        <div class="flex flex-col px-4"><div class="flex flex-col gap-2 border-t border-hairline-soft py-3 first:border-t-0">${body}</div></div></section>
+    </div></div>
+  </div>`;
+}
+const renderSettings = () => { $("centre").innerHTML = settings(); settle(); };
+async function typeInto(apply, text, id, speed = 26) { for (let i = 1; i <= text.length; i++) { apply(text.slice(0, i)); renderSettings(); await sleep(speed); alive(id); } }
+
+const centre = `
+  <div class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4"><div class="flex min-w-0 items-center gap-2"><span id="title" class="truncate font-sans text-app-xs text-muted"></span></div><div class="flex shrink-0 items-center gap-3 font-mono text-app-xs text-muted"><span class="flex items-center gap-1">${icon("size-3.5 text-accent-cyan-bright", GLYPH.bolt)}Plan mode: <strong class="text-ink">OFF</strong></span><span class="flex items-center gap-1.5 rounded px-1.5 py-0.5"><strong id="tok" class="text-accent-cyan-bright">0 tok</strong><span class="text-dim">·</span><span>Cache hit <strong class="text-ink">0%</strong></span></span></div></div>
+  <div class="flex min-h-0 grow flex-col overflow-hidden"><div id="scroller" class="h-full overflow-y-auto p-4"><div id="stream" class="mx-auto flex w-full max-w-3xl flex-col gap-3"></div></div></div>
+  <div class="shrink-0 bg-canvas px-3 pt-2 pb-3"><div class="mx-auto w-full max-w-3xl"><div id="dock"></div></div></div>`;
+
+function dock(typed, working) {
+  const star = working
+    ? `<span class="koda-star relative inline-flex shrink-0 items-center justify-center size-4 text-accent-indigo-bright"><svg class="animate-sparkle-pulse block size-full" viewBox="0 0 24 24" fill="currentColor"><path d="${GLYPH.sparkle[0]}"/><path d="${GLYPH.sparkle[1]}"/></svg></span>`
+    : icon("size-4 shrink-0 text-accent-indigo-bright", GLYPH.sparkle);
+  const text = typed
+    ? `<div class="min-w-0 grow py-1 text-app-xs leading-relaxed whitespace-pre-wrap text-ink">${esc(typed)}<span class="caret"></span></div>`
+    : `<div class="min-w-0 grow py-1 text-app-xs leading-relaxed text-dim">Message the agent · / for commands · @ for agents · ⌘↵ to send</div>`;
+  const hints = working ? [["⌘↵", "Steer"], ["⇧⌘↵", "Queue"], ["Esc", "Cancel"]] : [["⌘↵", "Send"], ["Esc", "Cancel"]];
+  $("dock").innerHTML = `<div class="flex w-full flex-col rounded-lg border p-2 elevated-shadow backdrop-blur-xl transition bg-panel/95 ${typed ? "border-accent-indigo/50" : "border-hairline"}">
+    <div class="relative flex items-start gap-2 px-1">${star}${text}<span class="flex size-6 shrink-0 items-center justify-center rounded text-dim">${icon("size-4", CLIP)}</span>${kbd("⌘K")}</div>
+    <div class="mt-1.5 flex items-center justify-between gap-3 border-t border-hairline-soft px-1 pt-1.5 text-app-2xs text-dim">
+      <span class="flex max-w-[260px] items-center gap-1.5 rounded border border-accent-amber/35 bg-accent-amber/12 px-2 py-0.5 font-mono text-accent-amber-bright"><span class="size-1.5 shrink-0 rounded-full bg-accent-amber"></span><span class="truncate">Host · asks first</span>${icon("size-2.5 shrink-0", CHEV)}</span>
+      <div class="flex shrink-0 items-center gap-2 font-mono">${hints.map(([k, a]) => `<span class="flex items-center gap-1">${kbd(k)}${a}</span>`).join("")}<button id="send" type="button" class="flex cursor-pointer items-center gap-1 rounded border border-elevated bg-hover px-2.5 py-1 text-app-xs font-medium text-ink transition hover:bg-elevated">Send${icon("size-3 text-dim", UP)}</button></div>
+    </div></div>`;
+}
+
+function setStatus(kind) {
+  const s = $("status");
+  const base = "flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-app-2xs font-medium ";
+  if (kind === "working") { s.className = base + "koda-pulse-glow border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan-bright"; s.innerHTML = `<span class="koda-star relative inline-flex shrink-0 items-center justify-center size-3.5 text-accent-indigo-bright"><svg class="animate-sparkle-pulse block size-full" viewBox="0 0 24 24" fill="currentColor"><path d="${GLYPH.sparkle[0]}"/><path d="${GLYPH.sparkle[1]}"/></svg></span><span>Working</span>`; return; }
+  s.className = base + "border-hairline bg-subtle text-accent-emerald-bright";
+  s.innerHTML = '<span class="inline-block size-1.5 shrink-0 rounded-full bg-accent-emerald"></span><span>Finished</span>';
+}
+
+const add = (html) => { $("stream").insertAdjacentHTML("beforeend", html); $("scroller").scrollTop = $("scroller").scrollHeight; return $("stream").lastElementChild; };
+const ROW = "flex w-full min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left font-mono text-app-xs transition hover:bg-subtle";
+const DOT = { running: "border-transparent bg-accent-cyan", done: "border-dim bg-panel" };
+const stepLine = (verb, subject, meta, unfolds) => `<span class="min-w-0 grow truncate"><span class="text-muted">${verb} </span><span class="text-ink/90">${esc(subject)}</span></span><span class="flex shrink-0 items-center gap-1.5 text-app-2xs text-dim"><span class="tabular-nums">${meta}</span>${unfolds ? icon("size-3 shrink-0", GLYPH.chevronRight) : ""}</span>`;
+const step = (verb, subject, state, meta, unfolds) => `<span class="absolute top-[9px] left-[-17px] size-2 rounded-full border ${DOT[state]}"></span><div class="${ROW}">${stepLine(verb, subject, meta, unfolds)}</div>`;
+let rail;
+const railStep = (html) => { rail.insertAdjacentHTML("beforeend", `<div class="enter relative scroll-mt-3">${html}</div>`); $("scroller").scrollTop = $("scroller").scrollHeight; return rail.lastElementChild; };
+
+const ASK = "Read Linear issue ACME-142 about webhook retries and tell me how you would fix it.";
+async function play(id) {
+  m = blank(); was = new Set();
+  mountShell("");
+  renderSettings();
+  await sleep(1200); alive(id);
+  await click($("add-server"), id);
+  m.form = { name: "", http: false, url: "" }; renderSettings(); await sleep(500); alive(id);
+  await pointTo($("f-name"), id, 0.1);
+  await typeInto((t) => { m.form.name = t; }, "linear", id, 70);
+  await click(q('[data-choice="URL (HTTP)"]'), id);
+  m.form.http = true; renderSettings(); await sleep(500); alive(id);
+  await pointTo($("f-url"), id, 0.1);
+  await typeInto((t) => { m.form.url = t; }, SERVER_URL, id, 22);
+  await sleep(400); alive(id);
+  await click($("save-server"), id);
+  m.form = null; m.servers = [{ name: "linear", status: "login" }]; renderSettings(); await sleep(1400); alive(id);
+  await click($("sign-in"), id);
+  m.servers[0].signing = true; renderSettings(); await sleep(2600); alive(id);
+  m.servers[0].signing = false; m.servers[0].status = "ready"; renderSettings(); await sleep(2600); alive(id);
+
+  mountShell(centre);
+  $("sb-doing").textContent = "acme-api: No session";
+  dock("", false);
+  await sleep(900); alive(id);
+  await pointTo(q("#dock .grow"), id, 0.2, 0.5);
+  for (let i = 1; i <= ASK.length; i++) { dock(ASK.slice(0, i), false); await sleep(20); alive(id); }
+  await sleep(500); alive(id);
+  await click($("send"), id);
+  $("title").textContent = ASK;
+  $("sb-doing").textContent = `acme-api: ${ASK}`;
+  dock("", true); setStatus("working");
+  add(`<div class="enter flex items-start gap-2 rounded-lg border border-hairline bg-subtle/60 p-3 font-mono text-app-xs text-ink leading-relaxed shadow-sm">${icon("mt-0.5 size-4 shrink-0 text-accent-cyan-bright", UP)}<p class="min-w-0 whitespace-pre-wrap break-words">${esc(ASK)}</p></div>`);
+  await sleep(900); alive(id);
+  rail = add('<div class="relative flex flex-col pl-5"><span class="absolute top-2.5 bottom-2.5 left-[7px] w-px bg-hairline"></span></div>');
+
+  let row = railStep(step("linear", "ACME-142", "running", "no result yet", true));
+  await sleep(900); alive(id);
+  row.innerHTML = step("linear", "ACME-142", "done", "38 lines", true);
+  $("tok").textContent = "5.1k tok";
+  row = railStep(step("Read", "src/webhooks/retry.rs", "running", "no result yet", false));
+  await sleep(800); alive(id);
+  row.innerHTML = step("Read", "src/webhooks/retry.rs", "done", "41 lines", false);
+  $("tok").textContent = "9.6k tok";
+  add(`<div class="enter flex flex-col gap-1 rounded-lg border border-hairline bg-panel p-3 font-mono text-app-xs leading-relaxed text-ink"><p class="whitespace-pre-wrap">ACME-142 says a delivery to an endpoint that keeps answering 503 retries forever. In <code class="rounded bg-subtle px-1 font-mono text-accent-cyan-bright">src/webhooks/retry.rs</code>, should_retry returns true for every 5xx and the loop has no limit. I would stop after max_attempts and record the delivery as failed.</p></div>`);
+  dock("", false); setStatus("done");
+  $("tok").textContent = "11.2k tok";
+  await sleep(4200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

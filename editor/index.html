@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code editor: ask about code, review AI edits · KodaCode</title>
+<meta name="description" content="A real editor beside the agent: select code and ask about it, review the agent's edits in place, and see which file it is reading or editing.">
+<link rel="canonical" href="https://kodacode.dev/editor/">
+<meta name="theme-color" content="#f4f0e8">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="KodaCode">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://kodacode.dev/editor/">
+<meta property="og:title" content="KodaCode · Edit beside the agent">
+<meta property="og:description" content="Select code and ask about it. Review every edit where it lands.">
+<meta property="og:image" content="https://kodacode.dev/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="KodaCode: Agents write code, KodaCode orchestrates.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="KodaCode · Edit beside the agent">
+<meta name="twitter:description" content="Select code and ask about it. Review every edit where it lands.">
+<link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+<link rel="icon" href="../assets/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="manifest" href="../site.webmanifest">
+<link rel="preload" href="../fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+<script src="../theme.js?v=6"></script>
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../site.css?v=7">
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "Organization", "@id": "https://kodacode.dev/#org", "name": "KodaCode", "url": "https://kodacode.dev/", "logo": "https://kodacode.dev/assets/icon-512.png"}, {"@type": "WebSite", "@id": "https://kodacode.dev/#site", "url": "https://kodacode.dev/", "name": "KodaCode", "publisher": {"@id": "https://kodacode.dev/#org"}}, {"@type": "WebPage", "@id": "https://kodacode.dev/editor/#page", "url": "https://kodacode.dev/editor/", "name": "Code editor: ask about code, review AI edits · KodaCode", "description": "A real editor beside the agent: select code and ask about it, review the agent's edits in place, and see which file it is reading or editing.", "isPartOf": {"@id": "https://kodacode.dev/#site"}, "about": {"@id": "https://kodacode.dev/#app"}, "breadcrumb": {"@id": "https://kodacode.dev/editor/#crumbs"}}, {"@type": "BreadcrumbList", "@id": "https://kodacode.dev/editor/#crumbs", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "KodaCode", "item": "https://kodacode.dev/"}, {"@type": "ListItem", "position": 2, "name": "Editor", "item": "https://kodacode.dev/editor/"}]}]}</script>
+</head>
+<body>
+<div class="sheet">
+  <header class="bar">
+    <a class="id" href="../"><img src="../assets/icon.svg" alt="">KodaCode</a>
+    <nav aria-label="Pages"><details class="menu current"><summary>Features</summary><div class="panel"><div><span class="kicker">Works without you</span><a href="../crew/"><b>Crew</b><span>Hand each job to the right agent</span></a><a href="../automations/"><b>Automations</b><span>A cheap model checks, an agent acts</span></a><a href="../goals/"><b>Goals</b><span>Plan it and leave it</span></a></div><div><span class="kicker">Knows your code</span><a href="../graph/"><b>Code graph</b><span>Who calls what, without searching</span></a><a href="../memory/"><b>Memory</b><span>Problems, fixes and decisions, linked by why</span></a><a href="./" aria-current="page"><b>Editor</b><span>Ask about a selection, review edits in place</span></a><a href="../review/"><b>Code review</b><span>Four reviewers, worst problems first</span></a></div><div><span class="kicker">Stays in bounds</span><a href="../control/"><b>Control</b><span>Ask first, or let it run</span></a><a href="../isolation/"><b>Isolation</b><span>A container per project, your terminal inside</span></a></div><div><span class="kicker">Plugs into</span><a href="../models/"><b>Models</b><span>Yours, a different one per agent</span></a><a href="../mcp/"><b>MCP servers</b><span>Tools from any MCP server</span></a><a href="../skills/"><b>Skills &amp; web</b><span>Deep research, web search, your own skills</span></a></div></div></details><a href="../models/">Models</a><a href="../pricing/">Pricing</a><a href="../faq/">FAQ</a></nav>
+    <div class="end"><details class="appearance"><summary aria-label="Appearance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/><circle cx="10.5" cy="7.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="7.5" r="1.2" fill="currentColor"/></svg></summary><div class="look" role="dialog" aria-label="Appearance"><b>Appearance</b><span class="kicker">Mode</span><div class="seg"><button type="button" data-mode="light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>Light</button><button type="button" data-mode="dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.1A8.5 8.5 0 1 1 9.9 3.5a6.6 6.6 0 0 0 10.6 10.6z"/></svg>Dark</button><button type="button" data-mode="system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>System</button></div><span class="kicker">Colour</span><div class="swatches"><button type="button" data-palette="pure" data-name="Pure" aria-label="Pure" style="--l:#ffffff;--d:#000000"></button><button type="button" data-palette="paper" data-name="Paper" aria-label="Paper" style="--l:#f4f0e8;--d:#131419"></button><button type="button" data-palette="midnight" data-name="Midnight" aria-label="Midnight" style="--l:#eef1f8;--d:#0b1020"></button><button type="button" data-palette="graphite" data-name="Graphite" aria-label="Graphite" style="--l:#f0f0ee;--d:#121214"></button><button type="button" data-palette="forest" data-name="Forest" aria-label="Forest" style="--l:#eef3ee;--d:#0c1411"></button><button type="button" data-palette="plum" data-name="Plum" aria-label="Plum" style="--l:#f5f0f7;--d:#140f1d"></button></div><span class="kicker">Background</span><div class="thumbs"><button type="button" class="thumb" data-bg="grid"><span class="art"><span class="grid"></span></span>Grid</button><button type="button" class="thumb" data-bg="network"><span class="art"><canvas data-kind="network"></canvas></span>Network</button><button type="button" class="thumb" data-bg="dots"><span class="art"><canvas data-kind="dots"></canvas></span>Dots</button><button type="button" class="thumb" data-bg="aurora"><span class="art"><span class="aurora"><i></i><i></i><i></i></span></span>Aurora</button><button type="button" class="thumb" data-bg="glow"><span class="art"><span class="glow"></span></span>Glow</button><button type="button" class="thumb" data-bg="still"><span class="art"><span class="still"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7v10M15 7v10"/></svg></span></span>Still</button></div></div></details><a class="dl" href="../download/">Coming soon</a></div>
+  </header>
+
+  <section class="hero">
+    <div class="kicker">The editor</div>
+    <h1 class="words">Edit <em>beside</em> <span class="mark">the agent.</span></h1>
+    <div class="intro"><p class="lede">Stay in the code while the agent works.</p><div class="detail"><p>Browse your project, select a few lines and ask about them, and watch the agent’s changes appear right in the file, without switching to another tool.</p></div></div>
+    <div class="pillars">
+      <div><b>Every change, in context.</b><p>Each edit shows exactly where it lands. Accept the ones you want and reject the rest, one at a time.</p></div>
+      <div><b>Questions with a precise focus.</b><p>Ask about exactly the lines you selected, so the answer is about your code, not a guess about it.</p></div>
+    </div>
+    <p class="closer">You and your agents, in <em>the same file.</em></p>
+    <div class="cta"><a class="solid" href="#fig">Watch it</a><a href="../pricing/">See pricing</a></div>
+    <div class="roles">
+      <div><b>Ask</b><span>Select code, ask the agent about it</span></div>
+      <div><b>Review</b><span>Every edit shown in place, as a diff</span></div>
+      <div><b>Follow</b><span>See which file the agent is reading or editing</span></div>
+      <div><b>Write</b><span>A full editor for your own changes</span></div>
+    </div>
+  </section>
+
+  <section class="figure" id="fig">
+    <div class="fig-head"><span>Fig. 4 — Asking about a selection, then reviewing the edit</span><span>Live replay</span></div>
+    <div class="live"><iframe data-follow src="../demo/editor.html?theme=follow" title="The KodaCode editor at work"></iframe></div>
+  </section>
+
+  <section class="points-wrap">
+    <div class="num">01<span>What you can do · In the editor</span></div>
+    <div class="points">
+      <div><b>Ask about a selection</b><p>Select any lines and click "Ask the agent about this selection". They're quoted into your message with the file and line numbers.</p></div>
+      <div><b>Review where it lands</b><p>A proposed edit opens in its file with the removed and added lines marked. Accept with ⌘↵, or reject with ⌘⌫ and a note the agent reads.</p></div>
+      <div><b>Never lose a review</b><p>A file with an edit waiting for you can't be closed by accident, and the tab is marked until you decide.</p></div>
+      <div><b>See what the agent is doing</b><p>The path bar tells you when the agent is reading or editing the file you have open.</p></div>
+      <div><b>A real editor</b><p>Syntax for Rust, TypeScript, JavaScript, Python, Go, Java, C, C++, SQL, HTML, CSS, JSON, YAML, Markdown and more. Search, folding, bracket matching and completion.</p></div>
+      <div><b>Keep your drafts</b><p>Unsaved changes stay with their tab while you switch files. ⌘S saves, and a terminal is a keystroke away.</p></div>
+    </div>
+  </section>
+
+  <section class="order" id="order">
+    <h2>Open a <em>file.</em></h2>
+    <div class="os">
+      <div><b>macOS</b><span>Desktop app</span><i>Coming soon</i></div>
+      <div><b>Windows</b><span>Desktop app</span><i>Coming soon</i></div>
+      <div><b>Linux</b><span>Desktop app</span><i>Coming soon</i></div>
+    </div>
+  </section>
+  <footer><nav class="map" aria-label="All pages"><div><b>Works without you</b><a href="../crew/">Crew</a><a href="../automations/">Automations</a><a href="../goals/">Goals</a></div><div><b>Knows your code</b><a href="../graph/">Code graph</a><a href="../memory/">Memory</a><a href="./" aria-current="page">Editor</a><a href="../review/">Code review</a></div><div><b>Stays in bounds</b><a href="../control/">Control</a><a href="../isolation/">Isolation</a></div><div><b>Plugs into</b><a href="../models/">Models</a><a href="../mcp/">MCP servers</a><a href="../skills/">Skills &amp; web</a></div><div><b>KodaCode</b><a href="../pricing/">Pricing</a><a href="../faq/">FAQ</a><a href="../download/">Download</a></div></nav></footer>
+</div>
+</body>
+</html>

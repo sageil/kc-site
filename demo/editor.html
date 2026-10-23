@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Editor Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; font-family: var(--font-sans); color: var(--koda-ink); }
+  .stage { width: 1100px; height: 680px; transform-origin: center; flex-shrink: 0; }
+  .window { width: 100%; height: 100%; border-radius: 12px; overflow: hidden; border: 1px solid var(--koda-hairline); box-shadow: 0 30px 80px rgb(0 0 0 / 0.35); display: flex; flex-direction: column; background: var(--koda-canvas); }
+  .titlebar { height: 28px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--koda-well); border-bottom: 1px solid var(--koda-hairline); }
+  .titlebar i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .row { height: 20px; line-height: 20px; }
+  .kw { color: var(--koda-accent-purple-bright); }
+  .ty { color: var(--koda-accent-amber); }
+  .nu { color: var(--koda-accent-amber-bright); }
+  .fn { color: var(--koda-accent-cyan-bright); }
+  .ask { position: absolute; margin: 4px 0; padding: 4px 10px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--koda-agent-main) 45%, var(--koda-hairline)); background: var(--koda-elevated); color: var(--koda-ink); font: 12px var(--font-sans); box-shadow: 0 4px 14px rgb(0 0 0 / 0.18); transition: transform .12s, background .12s; }
+  .press { transform: scale(0.94); background: var(--koda-hover); }
+  .enter { animation: enter .3s ease-out both; }
+  @keyframes enter { from { opacity: 0; transform: translateY(4px); } }
+  .caret::after { content: ""; display: inline-block; width: 7px; height: 13px; margin-left: 1px; vertical-align: -2px; background: var(--koda-accent-indigo-bright); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <main class="relative flex min-h-0 min-w-0 grow flex-col overflow-hidden bg-canvas">
+    <header class="flex h-(--koda-tab-h) shrink-0 items-center gap-1.5 border-b border-hairline bg-well px-2">
+      <button type="button" title="Scroll tabs left" class="flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 19-7-7 7-7"/></svg></button>
+      <div class="koda-no-scrollbar flex h-full min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+        <div class="flex h-full shrink-0 items-center gap-1 border-t-2 border-t-transparent px-2 font-mono text-app-2xs text-muted transition hover:bg-subtle">
+          <button id="tab-retry" type="button" class="flex cursor-pointer items-center gap-1.5 truncate transition"><svg class="size-3 shrink-0 text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg><span class="truncate">retry.rs</span></button>
+          <span id="tab-review" title="A change to this file is waiting for your decision. Accept or reject it first." class="flex size-4 shrink-0 items-center justify-center" style="display:none"><span class="size-1.5 rounded-full bg-accent-amber"></span></span>
+          <button id="tab-close" type="button" title="Close tab" class="flex size-4 shrink-0 cursor-pointer items-center justify-center rounded text-dim transition hover:bg-hover hover:text-ink"><svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="flex h-full shrink-0 items-center gap-1 border-t-2 border-t-transparent px-2 font-mono text-app-2xs text-muted transition hover:bg-subtle">
+          <button type="button" class="flex cursor-pointer items-center gap-1.5 truncate"><svg class="size-3 shrink-0 text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg><span class="truncate">send.rs</span></button>
+          <button type="button" title="Close tab" class="flex size-4 shrink-0 cursor-pointer items-center justify-center rounded text-dim transition hover:bg-hover hover:text-ink"><svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+      </div>
+      <button type="button" title="Scroll tabs right" class="flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></button>
+    </header>
+
+    <section id="file" class="flex min-h-0 grow flex-col overflow-hidden bg-canvas">
+      <div class="flex h-6 shrink-0 select-none items-center justify-between gap-3 border-b border-hairline-soft bg-canvas/60 px-4 font-mono text-app-2xs text-dim">
+        <div class="flex min-w-0 items-center gap-1.5">
+          <span class="truncate hover:text-muted">src/webhooks</span>
+          <svg class="size-3 shrink-0 -rotate-90 text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          <span class="flex min-w-0 items-center gap-1 font-medium text-ink"><svg class="size-3 shrink-0 text-accent-indigo-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg><span class="truncate">retry.rs</span></span>
+          <span id="doing" class="flex shrink-0 items-center gap-1 rounded-full border border-accent-indigo/40 bg-accent-indigo/10 px-1.5 text-accent-indigo-bright" style="display:none"><span class="animate-pulse">●</span><span id="doing-text"></span></span>
+        </div>
+        <div class="flex shrink-0 items-center gap-2"><span>Rust</span><span>UTF-8</span></div>
+      </div>
+
+      <div id="body" class="relative min-h-0 grow overflow-hidden px-4 py-2 font-mono text-code-editor">
+        <div id="said" class="absolute top-3 right-4 z-10 flex items-center gap-1.5 rounded-full bg-accent-indigo/15 px-3 py-1.5 text-app-sm text-accent-indigo-bright" style="display:none">
+          <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>
+          Agent is editing line 20…
+        </div>
+        <div id="code"></div>
+        <button id="ask" type="button" class="ask" style="display:none">Ask the agent about this selection</button>
+      </div>
+
+      <section id="card" aria-label="Proposed change" class="shrink-0 border-t border-hairline bg-panel" style="display:none">
+        <header class="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2">
+          <div class="flex min-w-0 items-center gap-2"><svg class="size-[15px] shrink-0 text-accent-indigo-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5v17"/><path d="M18 3.5v17"/><path d="M9.6 8.5h4.8"/><path d="M9.6 12h4.8"/><path d="M9.6 15.5h4.8"/></svg><span class="truncate text-app-sm font-medium text-ink">Stop retrying on 410 Gone</span></div>
+          <span class="shrink-0 font-mono text-app-2xs tabular-nums"><span class="text-accent-emerald-bright">+1</span><span class="text-dim"> </span><span class="text-accent-rose">-1</span></span>
+        </header>
+        <footer class="flex flex-wrap items-center gap-2 border-t border-hairline px-4 py-2">
+          <button id="accept" type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-emerald/40 bg-accent-emerald/10 px-2.5 py-1 text-app-xs font-medium text-accent-emerald-bright transition hover:bg-accent-emerald/20"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Accept<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">⌘↵</kbd></button>
+          <button type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-rose/40 bg-accent-rose/10 px-2.5 py-1 text-app-xs font-medium text-accent-rose transition hover:bg-accent-rose/20"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Reject<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">⌘⌫</kbd></button>
+          <input type="text" tabindex="-1" placeholder="Optional note sent with a rejection" class="min-w-0 grow rounded border border-hairline bg-canvas px-2 py-1 text-app-xs text-ink outline-none placeholder:text-dim">
+        </footer>
+      </section>
+
+      <div class="flex h-6 shrink-0 select-none items-center justify-between gap-3 border-t border-hairline bg-well px-3 font-mono text-app-2xs text-dim">
+        <div class="flex min-w-0 items-center gap-2"><span class="truncate">retry.rs</span><span class="text-hairline">·</span><span>Rust</span></div>
+        <div class="flex shrink-0 items-center gap-3"><button type="button" title="Wrap long lines (Alt+Z)" class="cursor-pointer rounded px-1 transition hover:bg-hover hover:text-ink">Wrap: off</button><span>Spaces: 2</span><span>LF</span></div>
+      </div>
+    </section>
+
+    <div id="stream" class="flex min-h-0 grow flex-col overflow-hidden" style="display:none">
+      <div class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4">
+        <div class="flex min-w-0 items-center gap-2"><span class="truncate font-sans text-app-xs text-muted">Does this keep retrying a 410 Gone?</span></div>
+        <div class="flex shrink-0 items-center gap-3 font-mono text-app-xs text-muted">
+          <span class="flex items-center gap-1"><svg class="size-3.5 text-accent-cyan-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Plan mode: <strong class="text-ink">OFF</strong></span>
+          <div class="group relative"><button type="button" class="flex cursor-default items-center gap-1.5 rounded px-1.5 py-0.5 transition hover:bg-hover"><strong id="tok" class="text-accent-cyan-bright">3.1k tok</strong><span class="text-dim">·</span><span>Cache hit <strong id="hit" class="text-ink">0%</strong></span></button></div>
+        </div>
+      </div>
+      <div class="flex min-h-0 grow flex-col overflow-hidden">
+        <div id="feed-scroll" class="h-full overflow-y-auto p-4"><div id="feed" class="mx-auto flex w-full flex-col gap-3"></div></div>
+      </div>
+    </div>
+
+    <div class="shrink-0 bg-canvas px-3 pt-2 pb-3">
+      <div class="mx-auto w-full max-w-3xl">
+        <div id="dock" class="flex w-full flex-col rounded-lg border border-hairline bg-panel/95 p-2 elevated-shadow backdrop-blur-xl transition focus-within:border-accent-indigo/50">
+          <div class="relative flex items-start gap-2 px-1">
+            <span id="star"></span>
+            <div id="prompt" class="max-h-72 min-w-0 grow overflow-y-auto bg-transparent py-1 text-app-xs leading-relaxed whitespace-pre-wrap break-words text-dim" style="min-height:22px"></div>
+            <button type="button" title="Attach files: text is included in the message, a large file is saved for the agent to read" class="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-dim transition hover:bg-hover hover:text-ink"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+            <kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">⌘K</kbd>
+          </div>
+          <div class="mt-1.5 flex items-center justify-between gap-3 border-t border-hairline-soft px-1 pt-1.5 text-app-2xs text-dim">
+            <div class="relative"><button type="button" title="Where this project's commands run, and whether its edits wait for you" class="flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 font-mono transition border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright"><span class="size-1.5 shrink-0 rounded-full bg-accent-amber"></span><span class="truncate">Host · asks first</span><svg class="size-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button></div>
+            <div class="flex shrink-0 items-center gap-2 font-mono">
+              <span id="hints" class="flex items-center gap-2"></span>
+              <button id="send" type="button" class="flex cursor-pointer items-center gap-1 rounded border border-elevated bg-hover px-2.5 py-1 text-app-xs font-medium text-ink transition hover:bg-elevated">Send<svg class="size-3 text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5.2"/><path d="m5.6 11.6 6.4-6.4 6.4 6.4"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const SPARKLE = ["M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z", "M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"];
+const ARROW_UP = ["M12 20V5.2", "m5.6 11.6 6.4-6.4 6.4 6.4"];
+const icon = (cls, paths) => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${paths.map((d) => `<path d="${d}"/>`).join("")}</svg>`;
+const kbd = (keys) => `<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">${keys}</kbd>`;
+const PLACEHOLDER = "Message the agent · / for commands · @ for agents · ⌘↵ to send";
+const PROMPT = "max-h-72 min-w-0 grow overflow-y-auto bg-transparent py-1 text-app-xs leading-relaxed whitespace-pre-wrap break-words";
+const DOCK = "flex w-full flex-col rounded-lg border border-hairline bg-panel/95 p-2 elevated-shadow backdrop-blur-xl transition focus-within:border-accent-indigo/50";
+const PATH = "src/webhooks/retry.rs";
+const source = [
+  "use crate::parser::parse_header;",
+  "",
+  "pub struct Backoff {",
+  "    pub base_ms: u64,",
+  "    pub max_tries: u32,",
+  "}",
+  "",
+  "impl Backoff {",
+  "    pub fn delay(&self, attempt: u32) -> u64 {",
+  "        self.base_ms * 2u64.pow(attempt)",
+  "    }",
+  "}",
+  "",
+  "pub fn should_retry(status: u16, attempt: u32, backoff: &Backoff) -> bool {",
+  "    if attempt >= backoff.max_tries {",
+  "        return false;",
+  "    }",
+  "    match status {",
+  "        408 | 429 | 500..=599 => true,",
+  "        _ => status != 400 && status != 401,",
+  "    }",
+  "}",
+  "",
+  "pub fn retry_after(headers: &str) -> Option<u64> {",
+  "    parse_header(headers, \"retry-after\")?.parse().ok()",
+  "}",
+];
+const FIXED = "        _ => !matches!(status, 400 | 401 | 410),";
+const CHANGED = 19;
+const SELECT = [18, 21];
+const QUESTION = "Does this keep retrying a 410 Gone? It shouldn't.";
+const selected = source.slice(SELECT[0] - 1, SELECT[1]);
+const QUOTED = `\`${PATH}\` lines ${SELECT[0]}–${SELECT[1]}:\n\`\`\`rs\n${selected.join("\n")}\n\`\`\`\n`;
+
+const esc = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function highlight(text) {
+  return esc(text).replace(/("(?:[^"\\]|\\.)*")|\b(use|pub|struct|impl|fn|if|return|match|self|crate)\b|\b([A-Z]\w*|u16|u32|u64|bool|str)\b|\b(\d[\d.=]*)\b|\b([a-z_]\w*)(?=[(!])/g, (m, s, kw, ty, nu, fn) =>
+    s ? `<span class="text-accent-emerald-bright">${s}</span>` : kw ? `<span class="kw">${kw}</span>` : ty ? `<span class="ty">${ty}</span>` : nu ? `<span class="nu">${nu}</span>` : `<span class="fn">${fn}</span>`);
+}
+function row(n, text, tint) {
+  return `<div class="row flex w-max min-w-full gap-4 border-l-2 ${tint}"><span class="w-6 shrink-0 text-right text-dim select-none">${n}</span><span class="whitespace-pre text-ink">${highlight(text)}</span></div>`;
+}
+function render({ selected = null, review = false } = {}) {
+  $("code").innerHTML = source.map((t, i) => {
+    const n = i + 1;
+    if (review && n === CHANGED + 1) {
+      return row(n, t, "border-diff-remove bg-diff-remove/12") + row("+", FIXED, "border-diff-add bg-diff-add/12");
+    }
+    const sel = selected && n >= selected[0] && n <= selected[1];
+    return row(n, t, sel ? "border-transparent bg-hover" : "border-transparent");
+  }).join("");
+}
+function doing(text) {
+  $("doing").style.display = text ? "" : "none";
+  $("doing-text").textContent = text || "";
+}
+function show(view) {
+  $("file").style.display = view === "file" ? "" : "none";
+  $("stream").style.display = view === "stream" ? "" : "none";
+}
+function dock({ working = false, running = false } = {}) {
+  $("dock").className = working ? `${DOCK} koda-border border-mode-static` : DOCK;
+  $("star").outerHTML = working
+    ? `<span id="star" class="koda-star relative inline-flex shrink-0 items-center justify-center size-4 text-accent-indigo-bright"><svg class="animate-sparkle-pulse block size-full" viewBox="0 0 24 24" fill="currentColor" stroke="none">${SPARKLE.map((d) => `<path d="${d}"/>`).join("")}</svg></span>`
+    : `<span id="star">${icon("size-4 shrink-0 text-accent-indigo-bright", SPARKLE)}</span>`;
+  const hints = running ? [["⌘↵", "Steer"], ["⇧⌘↵", "Queue"], ["Esc", "Cancel"]] : [["⌘↵", "Send"], ["Esc", "Cancel"]];
+  $("hints").innerHTML = hints.map(([keys, action]) => `<span class="flex items-center gap-1">${kbd(keys)}${action}</span>`).join("");
+}
+function prompt(text, typing = false) {
+  const p = $("prompt");
+  p.className = `${PROMPT} ${text ? "text-ink" : "text-dim"}${typing ? " caret" : ""}`;
+  p.textContent = text || PLACEHOLDER;
+}
+function feed(html) {
+  $("feed").insertAdjacentHTML("beforeend", html);
+  const scroller = $("feed-scroll");
+  scroller.scrollTop = scroller.scrollHeight;
+}
+const inline = (code) => `<code class="rounded bg-subtle px-1 font-mono text-accent-cyan-bright">${code}</code>`;
+const userMessage = () => `<div class="enter flex items-start gap-2 rounded-lg border border-hairline bg-subtle/60 p-3 font-mono text-app-xs font-semibold leading-relaxed text-accent-cyan-bright shadow-sm">${icon("mt-0.5 size-4 shrink-0", ARROW_UP)}<div class="flex min-w-0 flex-col gap-2"><div class="min-w-0 font-normal"><div class="flex min-w-0 flex-col gap-2 wrap-anywhere">
+  <p class="whitespace-pre-wrap">${inline(PATH)} lines ${SELECT[0]}–${SELECT[1]}:</p>
+  <pre class="overflow-x-auto whitespace-pre rounded border border-hairline bg-canvas p-3 font-mono text-code leading-relaxed text-ink">${selected.map(highlight).join("\n")}</pre>
+  <p class="whitespace-pre-wrap">${esc(QUESTION)}</p></div></div></div></div>`;
+const readStep = () => `<div class="enter relative flex flex-col pl-5"><span class="absolute top-2.5 bottom-2.5 left-[7px] w-px bg-hairline"></span><div class="relative scroll-mt-3"><span id="read-dot" class="absolute top-[9px] left-[-17px] size-2 rounded-full border border-transparent bg-accent-cyan"></span><button type="button" class="flex w-full min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left font-mono text-app-xs transition hover:bg-subtle cursor-pointer"><span class="min-w-0 grow truncate"><span class="text-muted">Read </span><span class="text-ink/90">${PATH}</span></span><span class="flex shrink-0 items-center gap-1.5 text-app-2xs text-dim"><span id="read-meta" class="tabular-nums"></span></span></button></div></div>`;
+const diffLine = (cls, text) => `<div class="flex flex-wrap items-baseline gap-x-1"><span class="flex flex-wrap items-baseline gap-x-1"><span class="whitespace-pre-wrap break-all ${cls}">${esc(text)}</span></span></div>`;
+const editCard = () => `<article class="enter flex w-full flex-col overflow-hidden rounded-lg border border-hairline bg-panel transition hover:border-dim/40 scroll-mt-3"><button type="button" class="cursor-pointer text-left transition hover:bg-hover flex items-center justify-between gap-3 p-2.5"><div class="flex min-w-0 flex-1 items-center gap-2.5 font-mono text-app-xs"><span class="shrink-0 font-bold select-none text-accent-cyan-bright">&gt;_</span><span class="flex min-w-0 items-baseline gap-1.5"><span class="shrink-0 text-ink/80">Edit</span><span class="truncate text-accent-cyan-bright">${PATH}</span></span></div><div class="flex shrink-0 items-center gap-1.5 font-mono text-app-2xs text-muted"><span class="shrink-0 tabular-nums">+1 −1</span></div></button><div class="flex flex-col gap-1 border-t border-hairline bg-canvas p-3 font-mono text-code text-muted">${diffLine("text-accent-rose", `- ${source[CHANGED]}`)}${diffLine("text-accent-emerald-bright", `+ ${FIXED}`)}</div></article>`;
+const reply = () => `<div class="enter flex flex-col gap-1 rounded-lg border border-hairline bg-panel p-3 font-mono text-app-xs leading-relaxed text-ink"><div class="flex min-w-0 flex-col gap-2 wrap-anywhere"><p class="whitespace-pre-wrap">It did: ${inline("410")} fell through to the catch-all arm, which only stopped on ${inline("400")} and ${inline("401")}. That arm now stops on ${inline("410")} too, so a gone endpoint is never retried.</p></div></div>`;
+
+let run = 0;
+const alive = (id) => { if (id !== run) throw new Error("restarted"); };
+async function play(id) {
+  show("file");
+  doing(null);
+  dock();
+  prompt("");
+  $("feed").innerHTML = "";
+  $("tok").textContent = "3.1k tok";
+  $("hit").textContent = "0%";
+  $("card").style.display = "none";
+  $("said").style.display = "none";
+  $("tab-review").style.display = "none";
+  $("tab-close").style.display = "";
+  $("ask").style.display = "none";
+  for (const el of ["ask", "send", "accept", "tab-retry"]) $(el).classList.remove("press");
+  $("body").scrollTop = 0;
+  render();
+  await sleep(1200); alive(id);
+
+  for (let end = SELECT[0]; end <= SELECT[1]; end++) {
+    render({ selected: [SELECT[0], end] });
+    await sleep(160); alive(id);
+  }
+  const ask = $("ask");
+  ask.style.left = "88px";
+  ask.style.top = `${8 + SELECT[1] * 20}px`;
+  ask.style.display = "";
+  ask.classList.add("enter");
+  await sleep(1100); alive(id);
+  ask.classList.add("press");
+  await sleep(200); alive(id);
+  ask.style.display = "none";
+
+  render();
+  prompt(QUOTED, true);
+  await sleep(600); alive(id);
+  let typed = QUOTED;
+  for (const ch of QUESTION) {
+    typed += ch; prompt(typed, true); await sleep(30 + Math.random() * 30); alive(id);
+  }
+  await sleep(400); alive(id);
+  $("send").classList.add("press");
+  await sleep(180); alive(id);
+  $("send").classList.remove("press");
+
+  prompt("");
+  show("stream");
+  dock({ working: true, running: true });
+  feed(userMessage());
+  await sleep(1100); alive(id);
+  feed(readStep());
+  await sleep(700); alive(id);
+  $("read-meta").textContent = `${source.length} lines`;
+  $("read-dot").className = "absolute top-[9px] left-[-17px] size-2 rounded-full border border-dim bg-panel";
+  $("tok").textContent = "5.8k tok";
+  $("hit").textContent = "54%";
+  await sleep(700); alive(id);
+
+  $("tab-retry").classList.add("press");
+  await sleep(180); alive(id);
+  $("tab-retry").classList.remove("press");
+  show("file");
+  doing("Agent is reading this file");
+  await sleep(2200); alive(id);
+
+  doing(null);
+  dock({ running: true });
+  render({ review: true });
+  $("body").scrollTop = (CHANGED - 6) * 20;
+  $("said").style.display = "";
+  $("card").style.display = "";
+  $("card").classList.add("enter");
+  $("tab-review").style.display = "";
+  $("tab-close").style.display = "none";
+  await sleep(2800); alive(id);
+  $("accept").classList.add("press");
+  await sleep(220); alive(id);
+
+  $("card").style.display = "none";
+  $("said").style.display = "none";
+  $("tab-review").style.display = "none";
+  $("tab-close").style.display = "";
+  show("stream");
+  dock({ working: true, running: true });
+  feed(editCard());
+  await sleep(1400); alive(id);
+  feed(reply());
+  dock();
+  $("tok").textContent = "7.2k tok";
+  $("hit").textContent = "61%";
+  await sleep(5000); alive(id);
+  start();
+}
+function start() {
+  const id = ++run;
+  play(id).catch((e) => { if (e.message !== "restarted") throw e; });
+}
+function fit() {
+  const scale = Math.min((innerWidth - 24) / 1100, (innerHeight - 24) / 680, 1);
+  $("stage").style.transform = `scale(${scale})`;
+}
+addEventListener("resize", fit);
+fit();
+(() => {
+  const theme = new URLSearchParams(location.search).get("theme"), root = document.documentElement;
+  if (theme !== "follow") { if (theme) root.dataset.theme = theme; return; }
+  try { root.dataset.theme = parent.document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); } catch {}
+  addEventListener("message", (e) => {
+    if (e.origin === location.origin && (e.data?.theme === "dark" || e.data?.theme === "light")) root.dataset.theme = e.data.theme;
+  });
+})();
+start();
+</script>
+</body>
+</html>

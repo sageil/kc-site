@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheduled AI automations for code and infra · KodaCode</title>
+<meta name="description" content="Automate anything an AI agent can read. A small decision model checks on a schedule and wakes an agent only when a rule says so, in one project or none.">
+<link rel="canonical" href="https://kodacode.dev/automations/">
+<meta name="theme-color" content="#f4f0e8">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="KodaCode">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://kodacode.dev/automations/">
+<meta property="og:title" content="KodaCode · Automations that think before they act.">
+<meta property="og:description" content="A small decision model makes the call. The agent only wakes when a rule says so.">
+<meta property="og:image" content="https://kodacode.dev/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="KodaCode: Agents write code, KodaCode orchestrates.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="KodaCode · Automations that think before they act.">
+<meta name="twitter:description" content="A small decision model makes the call. The agent only wakes when a rule says so.">
+<link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+<link rel="icon" href="../assets/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="manifest" href="../site.webmanifest">
+<link rel="preload" href="../fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+<script src="../theme.js?v=6"></script>
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../site.css?v=7">
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "Organization", "@id": "https://kodacode.dev/#org", "name": "KodaCode", "url": "https://kodacode.dev/", "logo": "https://kodacode.dev/assets/icon-512.png"}, {"@type": "WebSite", "@id": "https://kodacode.dev/#site", "url": "https://kodacode.dev/", "name": "KodaCode", "publisher": {"@id": "https://kodacode.dev/#org"}}, {"@type": "WebPage", "@id": "https://kodacode.dev/automations/#page", "url": "https://kodacode.dev/automations/", "name": "Scheduled AI automations for code and infra · KodaCode", "description": "Automate anything an AI agent can read. A small decision model checks on a schedule and wakes an agent only when a rule says so, in one project or none.", "isPartOf": {"@id": "https://kodacode.dev/#site"}, "about": {"@id": "https://kodacode.dev/#app"}, "breadcrumb": {"@id": "https://kodacode.dev/automations/#crumbs"}}, {"@type": "BreadcrumbList", "@id": "https://kodacode.dev/automations/#crumbs", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "KodaCode", "item": "https://kodacode.dev/"}, {"@type": "ListItem", "position": 2, "name": "Automations", "item": "https://kodacode.dev/automations/"}]}]}</script>
+</head>
+<body>
+<div class="sheet">
+  <header class="bar">
+    <a class="id" href="../"><img src="../assets/icon.svg" alt="">KodaCode</a>
+    <nav aria-label="Pages"><details class="menu current"><summary>Features</summary><div class="panel"><div><span class="kicker">Works without you</span><a href="../crew/"><b>Crew</b><span>Hand each job to the right agent</span></a><a href="./" aria-current="page"><b>Automations</b><span>A cheap model checks, an agent acts</span></a><a href="../goals/"><b>Goals</b><span>Plan it and leave it</span></a></div><div><span class="kicker">Knows your code</span><a href="../graph/"><b>Code graph</b><span>Who calls what, without searching</span></a><a href="../memory/"><b>Memory</b><span>Problems, fixes and decisions, linked by why</span></a><a href="../editor/"><b>Editor</b><span>Ask about a selection, review edits in place</span></a><a href="../review/"><b>Code review</b><span>Four reviewers, worst problems first</span></a></div><div><span class="kicker">Stays in bounds</span><a href="../control/"><b>Control</b><span>Ask first, or let it run</span></a><a href="../isolation/"><b>Isolation</b><span>A container per project, your terminal inside</span></a></div><div><span class="kicker">Plugs into</span><a href="../models/"><b>Models</b><span>Yours, a different one per agent</span></a><a href="../mcp/"><b>MCP servers</b><span>Tools from any MCP server</span></a><a href="../skills/"><b>Skills &amp; web</b><span>Deep research, web search, your own skills</span></a></div></div></details><a href="../models/">Models</a><a href="../pricing/">Pricing</a><a href="../faq/">FAQ</a></nav>
+    <div class="end"><details class="appearance"><summary aria-label="Appearance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/><circle cx="10.5" cy="7.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="7.5" r="1.2" fill="currentColor"/></svg></summary><div class="look" role="dialog" aria-label="Appearance"><b>Appearance</b><span class="kicker">Mode</span><div class="seg"><button type="button" data-mode="light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>Light</button><button type="button" data-mode="dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.1A8.5 8.5 0 1 1 9.9 3.5a6.6 6.6 0 0 0 10.6 10.6z"/></svg>Dark</button><button type="button" data-mode="system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>System</button></div><span class="kicker">Colour</span><div class="swatches"><button type="button" data-palette="pure" data-name="Pure" aria-label="Pure" style="--l:#ffffff;--d:#000000"></button><button type="button" data-palette="paper" data-name="Paper" aria-label="Paper" style="--l:#f4f0e8;--d:#131419"></button><button type="button" data-palette="midnight" data-name="Midnight" aria-label="Midnight" style="--l:#eef1f8;--d:#0b1020"></button><button type="button" data-palette="graphite" data-name="Graphite" aria-label="Graphite" style="--l:#f0f0ee;--d:#121214"></button><button type="button" data-palette="forest" data-name="Forest" aria-label="Forest" style="--l:#eef3ee;--d:#0c1411"></button><button type="button" data-palette="plum" data-name="Plum" aria-label="Plum" style="--l:#f5f0f7;--d:#140f1d"></button></div><span class="kicker">Background</span><div class="thumbs"><button type="button" class="thumb" data-bg="grid"><span class="art"><span class="grid"></span></span>Grid</button><button type="button" class="thumb" data-bg="network"><span class="art"><canvas data-kind="network"></canvas></span>Network</button><button type="button" class="thumb" data-bg="dots"><span class="art"><canvas data-kind="dots"></canvas></span>Dots</button><button type="button" class="thumb" data-bg="aurora"><span class="art"><span class="aurora"><i></i><i></i><i></i></span></span>Aurora</button><button type="button" class="thumb" data-bg="glow"><span class="art"><span class="glow"></span></span>Glow</button><button type="button" class="thumb" data-bg="still"><span class="art"><span class="still"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7v10M15 7v10"/></svg></span></span>Still</button></div></div></details><a class="dl" href="../download/">Coming soon</a></div>
+  </header>
+
+  <section class="hero">
+    <div class="kicker">Automations</div>
+    <h1 class="words">Automations that <em>think</em> before <span class="mark">they act.</span></h1>
+    <div class="intro"><p class="lede">Most automations follow a timer. Yours follow judgment.</p><div class="detail"><p>Pick what to watch, like a file, a command’s output, the latest commit or a migration, and write down what matters. On your schedule, a small decision model reads the latest signals and decides whether anything needs doing.</p></div></div>
+    <div class="pillars">
+      <div><b>From signal to action.</b><p>Get a notification when something needs your attention, or let an agent investigate and fix it on its own.</p></div>
+      <div><b>Cheap to run, wherever you work.</b><p>Run automations in one project, across all of them, or with no project at all, on a cloud model or a free local one through Ollama.</p></div>
+    </div>
+    <p class="closer">Let the routine checks <em>run themselves.</em></p>
+    <div class="cta"><a class="solid" href="#fig">Watch one get made</a><a href="../pricing/">See pricing</a></div>
+    <div class="roles">
+      <div><b>Read</b><span>Files, read-only commands, commits, migrations</span></div>
+      <div><b>Ask</b><span>Yes or no, pick one, or a score</span></div>
+      <div><b>Decide</b><span>Simple rules you can read</span></div>
+      <div><b>Act</b><span>Leave a note, or start an agent</span></div>
+    </div>
+  </section>
+
+  <section class="figure" id="fig">
+    <div class="fig-head"><span>Fig. 1 — Focus on the important, automate the boring stuff</span><span>Live replay</span></div>
+    <div class="live"><iframe data-follow src="../demo/automation-editor.html?theme=follow" title="Creating an automation in the app"></iframe></div>
+  </section>
+
+  <section class="feature">
+    <div class="feature-head">
+      <div class="num">01<span>How it decides · Decision models</span></div>
+      <div>
+        <h2>A cheap model <em>does the checking.</em></h2>
+        <p>Running a full agent every few minutes would be slow and expensive. So each check goes to a small model whose only job is to answer your questions (yes or no, pick one, or a score) and say how sure it is. Run it on your own machine through Ollama, through OpenRouter, or on your own server, with models like nimble or Jev. The big agent only starts when one of your rules says so.</p>
+      </div>
+    </div>
+    <div class="live"><iframe data-follow src="../demo/automations.html?theme=follow" title="Running the pharma cluster check" loading="lazy"></iframe></div>
+  </section>
+
+  <section class="points-wrap">
+    <div class="num">02<span>What you can automate · A few ideas</span></div>
+    <div class="points">
+      <div><b>Infrastructure</b><p>Read a status export or a config every couple of hours, and wake an agent when disk, certificates or capacity need attention.</p></div>
+      <div><b>Releases</b><p>Every weekday evening, read everything since the last tag, decide whether any of it matters to users, and get release notes drafted.</p></div>
+      <div><b>Dependencies</b><p>When a commit adds a package, check its licence, how well it's maintained, and whether you already have one that does the job.</p></div>
+      <div><b>Security</b><p>Catch a key, token or password in the latest commit, and plan how to remove it from history and rotate it.</p></div>
+      <div><b>Tests and data</b><p>Notice changed functions no test reaches, or a migration that drops a column the code still uses.</p></div>
+      <div><b>Anything else</b><p>If a file or a read-only command can show it, an automation can keep an eye on it.</p></div>
+    </div>
+  </section>
+
+  <section class="feature">
+    <div class="feature-head">
+      <div class="num">03<span>As many as you want · Yours or the team's</span></div>
+      <div>
+        <h2>Six come built in, <em>and you can add your own.</em></h2>
+        <p>Save an automation in the project and your whole team gets it with the code. Keep it to yourself and run it in every project, a few of them, or none at all. Before you save, Try it runs the check once and shows you what would happen, without actually doing it.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="also">
+    <div class="num">04<span>Safe by default</span></div>
+    <table>
+      <tr><td>Reads only</td><td>It can only run commands that read, never ones that change things</td></tr>
+      <tr><td>Plans first</td><td>An agent it starts makes a plan first, unless the project runs in a container</td></tr>
+      <tr><td>No project</td><td>Runs in its own empty folder and only sees the folders you allow</td></tr>
+      <tr><td>Tells you</td><td>Results show up in the status bar, with a desktop notification</td></tr>
+      <tr><td>Never missed</td><td>If Koda was closed when a check was due, it runs once when you open it</td></tr>
+    </table>
+  </section>
+
+  <section class="order" id="order">
+    <h2>Put it on <em>autopilot.</em></h2>
+    <div class="os">
+      <div><b>macOS</b><span>Desktop app</span><i>Coming soon</i></div>
+      <div><b>Windows</b><span>Desktop app</span><i>Coming soon</i></div>
+      <div><b>Linux</b><span>Desktop app</span><i>Coming soon</i></div>
+    </div>
+  </section>
+  <footer><nav class="map" aria-label="All pages"><div><b>Works without you</b><a href="../crew/">Crew</a><a href="./" aria-current="page">Automations</a><a href="../goals/">Goals</a></div><div><b>Knows your code</b><a href="../graph/">Code graph</a><a href="../memory/">Memory</a><a href="../editor/">Editor</a><a href="../review/">Code review</a></div><div><b>Stays in bounds</b><a href="../control/">Control</a><a href="../isolation/">Isolation</a></div><div><b>Plugs into</b><a href="../models/">Models</a><a href="../mcp/">MCP servers</a><a href="../skills/">Skills &amp; web</a></div><div><b>KodaCode</b><a href="../pricing/">Pricing</a><a href="../faq/">FAQ</a><a href="../download/">Download</a></div></nav></footer>
+</div>
+</body>
+</html>

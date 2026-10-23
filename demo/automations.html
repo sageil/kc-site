@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Automations Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="shell.js"></script>
+<script src="automation-ui.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const FILE = "~/dev/acme-api/.koda/automations/pharma-cluster-health.json";
+const LIST = [
+  { group: "This project", name: "pharma-cluster-health", trailing: "every 15m", detail: "Checks the pharma cluster and starts an agent to investigate when it is unhealthy" },
+  { group: "Built-in", name: "dependency-change-watch", trailing: "manual", detail: "Reviews dependency changes in the latest commit" },
+  { group: "Built-in", name: "risky-change-review", trailing: "manual", detail: "Reviews the latest commit when it is risky or touches sensitive code" },
+];
+const healthy = (when) => ({ when, scheduled: true, tone: "neutral", outcome: "No rule matched and nothing to do", answer: "yes 98%" });
+const earlier = [healthy("4 min ago"), healthy("19 min ago"), healthy("34 min ago")];
+let s;
+const reset = () => { s = { ...AU.pharma(), pane: "doc", file: FILE, runsTab: true, runs: earlier, list: LIST, picker: false, chip: null, tried: null, unsaved: false, running: false }; };
+const render = () => mountShell(AU.screen(s));
+
+async function play(id) {
+  reset(); render();
+  await sleep(1400); alive(id);
+  await click($("picker"), id);
+  s.picker = true; render(); await sleep(1600); alive(id);
+  await click($("picker"), id);
+  s.picker = false; render(); await sleep(500); alive(id);
+  await click($("run-now"), id);
+  s.running = true; s.runs = [{ when: "just now", tone: "amber", outcome: "Running or stopped before it finished", fresh: true }, ...earlier]; render();
+  await sleep(2400); alive(id);
+  s.running = false; s.runs = [{ when: "just now", tone: "emerald", outcome: "Rule 1 matched", answer: "yes 4%", agent: AU.PROMPT, fresh: true }, ...earlier]; render();
+  await sleep(1600); alive(id);
+  await pointTo($("open-session"), id);
+  await sleep(2600); alive(id);
+  await click(document.querySelector('[data-seg="Pipeline"]'), id);
+  s.runsTab = false; render(); await sleep(800); alive(id);
+  const b = $("body"), el = document.querySelector("#s-decide"); b.scrollTop = (el.getBoundingClientRect().top - b.getBoundingClientRect().top) / ($("stage").getBoundingClientRect().width / 1280) - 16;
+  await sleep(3600); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

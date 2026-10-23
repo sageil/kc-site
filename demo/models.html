@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Models Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const CHEV = ["m6 9 6 6 6-6"];
+const SETTINGS = ["M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z", "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"];
+const RELOAD = ["M21 12a9 9 0 1 1-2.64-6.36", "M21 3v6h-6"];
+const USER = ["M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"];
+const EYE = ["M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0", "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"];
+const ARROW = ["M5 12h14", "m12 5 7 7-7 7"];
+const q = (s) => document.querySelector(s);
+let was = new Set(), now = new Set();
+const ent = (key) => { now.add(key); return was.has(key) ? "" : "enter "; };
+const settle = () => { was = now; now = new Set(); };
+
+const KINDS = [
+  ["anthropic", "Anthropic", "AN", "bg-orange-400/15 text-orange-300", "Frontier models for autonomous agent loops", ["API Key"], "console"],
+  ["chatgpt", "ChatGPT", "CG", "bg-teal-400/15 text-teal-300", "Sign in with your ChatGPT account; no API key of its own", ["OAuth / Browser Login"]],
+  ["openai", "OpenAI", "OA", "bg-emerald-400/15 text-emerald-300", "Platform account or an API key from the console", ["API Key", "OAuth / Browser Login"], "console"],
+  ["google", "Google", "GO", "bg-sky-400/15 text-sky-300", "Gemini through Google's own endpoint", ["API Key", "OAuth / Browser Login"], "console"],
+  ["deepseek", "DeepSeek", "DS", "bg-cyan-400/15 text-cyan-300", "DeepSeek's own models at a fraction of the price", ["API Key"], "console"],
+  ["qwen", "Qwen", "QW", "bg-violet-400/15 text-violet-300", "Alibaba's DashScope, which is split by region", ["API Key"], "console"],
+  ["ollama", "Ollama Local", "OL", "bg-neutral-400/15 text-neutral-300", "A model running on this machine, with no account at all", [], null, "11434"],
+  ["ollama-cloud", "Ollama Cloud", "OC", "bg-neutral-400/15 text-neutral-100", "Ollama's hosted models, reached with an API key", ["API Key"]],
+  ["openrouter", "OpenRouter", "OR", "bg-indigo-400/15 text-indigo-300", "One key across many vendors' models", ["API Key", "OAuth / Browser Login"], "console"],
+];
+const BASE_URL = { anthropic: "https://api.anthropic.com", chatgpt: "https://chatgpt.com/backend-api/codex", ollama: "http://localhost:11434" };
+const FACTS = {
+  "gpt-5": { facts: [["Context window", "400000"], ["Output cap", "128000"], ["Tools", "yes"], ["Reasoning", "yes"], ["Vision", "yes"], ["Price per million in", "$1.25"], ["Price per million out", "$10.00"]], levels: ["Minimal", "Low", "Medium", "High"] },
+  "claude-sonnet-5-5": { facts: [["Context window", "1000000"], ["Output cap", "64000"], ["Tools", "yes"], ["Reasoning", "yes"], ["Vision", "yes"], ["Price per million in", "$3.00"], ["Price per million out", "$15.00"]], levels: ["Low", "Medium", "High", "Max"] },
+};
+const ALL_LEVELS = ["Off", "Minimal", "Low", "Medium", "High", "Extra high", "Max"];
+const kind = (slug) => KINDS.find((k) => k[0] === slug);
+const tile = (slug) => `<span class="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-app-2xs font-bold tracking-tight ${kind(slug)[3]}">${kind(slug)[2]}</span>`;
+const STATUS_TONE = { connected: "text-accent-emerald-bright", configured: "text-muted", "not connected": "text-dim" };
+const MONO_CAPS = "font-mono text-app-2xs tracking-[0.06em] uppercase";
+const KIND_CLASS = {
+  primary: "border-accent-cyan/45 bg-accent-cyan/10 font-medium text-accent-cyan-bright hover:border-accent-cyan hover:bg-accent-cyan/18",
+  secondary: "border-hairline bg-subtle text-ink/80 hover:bg-hover hover:text-ink",
+  danger: "border-accent-rose/40 bg-accent-rose/10 text-accent-rose hover:bg-accent-rose/20",
+};
+const action = (label, kindName, glyph, id, disabled) => `<button type="button" ${id ? `id="${id}"` : ""} ${disabled ? "disabled" : ""} class="flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${KIND_CLASS[kindName]}">${glyph ? icon("size-3.5 shrink-0", glyph) : ""}${label}</button>`;
+const screenHeader = (glyph, tone, title, caption) => `<header class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4"><div class="flex min-w-0 items-center gap-2">${icon(`size-4 shrink-0 ${tone}`, glyph)}<h1 class="shrink-0 font-mono text-app-xs font-bold text-ink">${title}</h1><span class="truncate text-app-xs text-muted">${caption}</span></div></header>`;
+const screenFooter = (info, actions) => `<footer class="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-3 border-t border-hairline bg-panel px-4 py-2"><div class="flex min-w-0 items-center gap-2 font-mono text-app-2xs text-muted">${info}</div><div class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">${actions}</div></footer>`;
+const titleButton = (current, id) => `<button ${id ? `id="${id}"` : ""} type="button" class="flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 font-mono text-app-xs text-muted transition hover:bg-hover hover:text-ink"><span class="max-w-64 truncate">${current}</span>${icon("size-3 shrink-0", CHEV)}</button>`;
+const pickList = (groups, items, footer, attr, end = true) => `<div class="${ent("pick")}absolute top-full ${end ? "right-0" : "left-0"} z-50 mt-1.5 flex max-h-[60vh] w-96 max-w-[80vw] flex-col overflow-hidden rounded-lg border border-hairline bg-elevated elevated-shadow">
+    <div class="flex shrink-0 items-center gap-2 border-b border-hairline px-3 py-2">${icon("size-3 shrink-0 text-dim", GLYPH.search)}<span class="min-w-0 grow font-mono text-app-xs text-dim">${footer[0]}</span></div>
+    <div class="flex min-h-0 grow flex-col overflow-y-auto py-1" role="listbox">${groups.map(([g, caption]) => `<div class="flex flex-col px-3 pt-2 pb-0.5"><span class="font-mono text-app-3xs tracking-wider text-dim uppercase">${g}</span>${caption ? `<span class="text-app-3xs text-dim">${caption}</span>` : ""}</div>${items.filter((i) => i.group === g).map((i) => `<button type="button" ${attr}="${i.key}" class="${i.chosen ? "flex w-full cursor-pointer flex-col gap-0.5 border-l-2 border-accent-purple bg-accent-purple/10 px-3 py-1.5 text-left" : "flex w-full cursor-pointer flex-col gap-0.5 border-l-2 border-transparent px-3 py-1.5 text-left transition hover:bg-hover"}"><span class="flex items-center gap-1.5 font-mono text-app-xs text-ink"><span class="truncate">${i.label}</span>${i.badge ? `<span class="shrink-0 text-app-3xs tracking-wider text-dim uppercase">${i.badge}</span>` : ""}<span class="ml-auto shrink-0 text-app-3xs text-dim">${i.trailing}</span></span>${i.detail ? `<span class="line-clamp-1 text-app-2xs text-dim">${i.detail}</span>` : ""}</button>`).join("")}`).join("")}</div>
+    <button type="button" class="flex shrink-0 cursor-pointer items-center gap-2 border-t border-hairline px-3 py-2 text-left font-mono text-app-xs text-accent-purple-bright transition hover:bg-hover">${icon("size-3", GLYPH.plus)}${footer[1]}</button>
+  </div>`;
+const settingChip = (id, label, value, caption, open, body) => `<button type="button" id="chip-${id}" class="${open ? "flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-accent-purple/50 bg-accent-purple/10 px-2.5 py-0.5 font-mono text-app-2xs" : "flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-hairline bg-subtle px-2.5 py-0.5 font-mono text-app-2xs transition hover:border-accent-purple/40"}"><span class="shrink-0 text-dim">${label}</span><span class="max-w-72 truncate text-ink/90">${value}</span></button>${open ? `<div class="${ent(`chip-${id}`)}absolute top-full right-0 left-0 z-50 mt-1.5 flex max-w-[32rem] flex-col gap-2 rounded-lg border border-hairline bg-elevated p-3 elevated-shadow"><span class="text-app-sm font-medium text-ink">${label}</span><span class="text-app-2xs text-dim">${caption}</span>${body}</div>` : ""}`;
+const segmented = (opts, on) => `<div class="flex gap-0.5 rounded-lg border border-hairline bg-canvas p-0.5" role="radiogroup">${opts.map((o) => `<button type="button" role="radio" class="${o === on ? "flex-1 rounded bg-elevated px-2.5 py-1 text-app-2xs text-ink" : "flex-1 rounded px-2.5 py-1 text-app-2xs text-dim transition hover:text-muted"}">${o}</button>`).join("")}</div>`;
+function prefs(current, body) {
+  return `<div class="flex min-h-0 grow flex-col overflow-hidden">
+    <div class="flex shrink-0 flex-col bg-canvas" aria-label="Preferences">
+      ${screenHeader(SETTINGS, "text-accent-cyan-bright", "Preferences", "~/.config/kc/config.toml")}
+      <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline px-5 py-2.5"><div class="relative">${titleButton(current)}</div>
+        <label class="ml-auto flex w-72 max-w-full items-center gap-2 rounded border border-hairline bg-canvas px-2 py-1.5">${icon("size-3.5 shrink-0 text-dim", GLYPH.search)}<span class="min-w-0 grow font-mono text-app-xs text-dim">Search all settings</span></label></div>
+    </div>
+    <div class="flex min-h-0 grow flex-col overflow-hidden">${body}</div>
+  </div>`;
+}
+
+let p;
+const fresh = () => ({
+  selected: "anthropic",
+  chip: null,
+  menu: false,
+  hover: null,
+  saved: { anthropic: { status: "connected", model: "claude-sonnet-5-5" } },
+  rows: { anthropic: { status: "connected", model: "claude-sonnet-5-5" } },
+  active: "anthropic",
+  feedback: "",
+  busy: false,
+  picker: false,
+});
+
+function providerPicker() {
+  const items = KINDS.map(([slug, name, , , blurb, , , port]) => {
+    const status = p.rows[slug]?.status || "not connected";
+    return { key: slug, label: name, detail: blurb, badge: p.active === slug ? "active" : "", group: status === "not connected" ? "Available" : "Yours", trailing: port ? `${status} · ${port}` : status, chosen: slug === p.selected };
+  });
+  return pickList([["Yours"], ["Available"]], items, ["Search providers", "Add provider"], "data-pick");
+}
+
+const fieldInput = (label, value, placeholder) => `<div class="flex flex-col gap-1"><span class="text-app-2xs text-muted">${label}</span><div class="w-full rounded bg-canvas px-2.5 py-1.5 font-mono text-app-xs ${value ? "text-ink" : "text-dim"}" style="min-height:28px">${value || placeholder}</div></div>`;
+function authBlock(slug) {
+  const k = kind(slug), segments = k[5];
+  if (!segments.length) return "";
+  const seg = segments.length > 1
+    ? segments.map((s, i) => `<button type="button" role="radio" class="${i === 0 ? `flex cursor-pointer items-center justify-center gap-1.5 rounded bg-elevated px-2 py-1 ${MONO_CAPS} text-ink` : `flex cursor-pointer items-center justify-center gap-1.5 rounded px-2 py-1 ${MONO_CAPS} text-dim transition hover:text-muted`}">${s}</button>`).join("")
+    : `<span role="status" class="col-span-2 flex items-center justify-center gap-1.5 rounded bg-elevated px-2 py-1 ${MONO_CAPS} text-ink">${segments[0]}</span>`;
+  let body;
+  if (segments[0] === "API Key") {
+    body = `<div class="flex flex-col gap-1"><div class="flex items-center justify-between"><label class="${MONO_CAPS} text-muted">API Key</label>${k[6] ? `<a class="flex items-center gap-0.5 ${MONO_CAPS} text-accent-cyan-bright transition hover:text-ink">${k[1]} console${icon("size-3", GLYPH.external)}</a>` : ""}</div>
+      <div class="relative flex items-center"><div class="w-full rounded-lg bg-canvas py-2 pr-24 pl-3 font-mono text-app-xs tracking-normal text-dim" style="min-height:32px">Paste your key</div>
+      <div class="absolute right-2 flex items-center gap-1"><button type="button" class="flex cursor-pointer items-center justify-center rounded p-1 text-dim transition hover:bg-hover hover:text-ink">${icon("size-3.5", EYE)}</button><button type="button" class="cursor-pointer rounded bg-elevated px-2 py-0.5 font-mono text-app-2xs font-medium text-ink transition hover:bg-elevated">Paste</button></div></div></div>`;
+  } else {
+    const f = p.feedback;
+    let inner;
+    if (f === "signed-in") {
+      inner = `<div class="${ent("signed")}flex items-center justify-between gap-2 rounded border border-accent-emerald/35 bg-accent-emerald/12 px-2.5 py-2"><div class="flex min-w-0 items-center gap-2">${icon("size-4 shrink-0 text-accent-emerald-bright", GLYPH.check)}<div class="min-w-0"><p class="truncate text-app-xs text-ink">Signed in as dev@acme.dev</p><p class="${MONO_CAPS} text-accent-emerald-bright">Session stored in your keyring</p></div></div>${action("Sign out", "secondary")}</div>`;
+    } else {
+      inner = `<div class="flex">${action(`Sign in with ${k[1]}`, "primary", USER, "signin", p.busy)}</div>`;
+      if (f === "starting") inner += `<p class="${MONO_CAPS} text-dim">Starting the sign-in</p>`;
+      if (f === "awaiting") inner += `<div class="${ent("awaiting")}flex flex-col gap-1.5 rounded border border-accent-amber/35 bg-accent-amber/12 px-2.5 py-2"><p class="${MONO_CAPS} text-accent-amber-bright">Waiting for you to finish in the browser</p><p class="select-all font-mono text-app tracking-[0.12em] text-ink">K7QP-4MZD</p><a class="flex items-center gap-1 self-start ${MONO_CAPS} text-accent-cyan-bright transition hover:text-ink">Open the page to approve${icon("size-3", GLYPH.external)}</a></div>`;
+    }
+    body = `<div class="flex flex-col gap-2">${inner}</div>`;
+  }
+  return `<div class="flex flex-col gap-2"><div class="grid grid-cols-2 gap-0.5 rounded-lg border border-hairline bg-canvas p-0.5" role="group">${seg}</div>${body}</div>`;
+}
+
+function modelDetails(model) {
+  const known = FACTS[model];
+  const facts = model ? `<div class="flex flex-col gap-1.5 rounded bg-subtle px-2.5 py-2"><div class="flex items-center justify-between gap-2"><span class="${MONO_CAPS} text-muted">What the catalogue says</span><button type="button" class="flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 ${MONO_CAPS} text-dim transition hover:bg-hover hover:text-ink">${icon("size-3", RELOAD)}Refresh</button></div><div class="flex flex-col gap-1 text-app-2xs">${(known ? known.facts : [["Context window", "unknown"]]).map(([l, v]) => `<div class="flex items-baseline justify-between gap-2"><span class="text-dim">${l}</span><span class="tabular-nums text-ink">${v}</span></div>`).join("")}</div></div>` : "";
+  const levels = model ? known?.levels || [] : ALL_LEVELS;
+  const level = (label, on) => `<button type="button" role="radio" class="${on ? `cursor-pointer rounded bg-elevated px-2 py-1 ${MONO_CAPS} text-ink` : `cursor-pointer rounded px-2 py-1 ${MONO_CAPS} text-dim transition hover:text-muted`}">${label}</button>`;
+  const thinking = levels.length ? `<div class="flex flex-col gap-1"><span class="${MONO_CAPS} text-dim">Thinking</span><div class="flex flex-wrap gap-0.5 rounded-lg border border-hairline bg-canvas p-0.5" role="radiogroup">${level("Default", true)}${levels.map((l) => level(l, false)).join("")}</div></div>` : "";
+  return facts + thinking;
+}
+function advanced(slug, connected) {
+  return `<details class="group rounded-lg bg-subtle"${connected ? " open" : ""}><summary class="flex cursor-pointer list-none select-none items-center justify-between gap-2 px-2.5 py-2"><span class="flex items-center gap-1.5 font-mono text-app-xs font-medium tracking-[0.04em] text-muted transition group-hover:text-ink">${icon("size-3.5 shrink-0 text-dim transition-transform -rotate-90 group-open:rotate-0", CHEV)}Advanced endpoint parameters</span>${connected ? '<span class="font-mono text-app-2xs uppercase tracking-[0.08em] text-dim">Configured</span>' : ""}</summary>
+    <div class="flex flex-col gap-2 px-3 pt-1 pb-3">${fieldInput("Base URL / HTTP Proxy", "", "https://your-endpoint.example")}${fieldInput("Context window override", "", "blank uses the discovered window")}<div class="flex flex-col gap-1"><span class="text-app-2xs text-muted">Request body (JSON)</span><div class="w-full rounded bg-canvas px-2.5 py-1.5 font-mono text-app-xs text-dim" style="min-height:58px">{"temperature": 0.2, "top_p": 0.9}</div></div>${slug === "chatgpt" ? fieldInput("Codex client version", "", "major.minor.patch") : ""}</div></details>`;
+}
+
+function providers() {
+  const slug = p.selected, k = kind(slug), row = p.rows[slug];
+  const status = row?.status || "not connected", active = p.active === slug, saved = !!p.saved[slug];
+  const model = row?.model || "";
+  const pane = `<div class="flex h-full min-h-0 grow flex-col">
+    <div class="flex shrink-0 flex-col gap-1 border-b border-hairline px-5 py-4"><h1 class="text-app font-semibold text-ink">Models &amp; providers</h1><p class="text-app-sm leading-relaxed text-muted">Where models come from: sign in, pick a default model, and choose the active one</p></div>
+    <div class="flex min-h-0 grow flex-col bg-panel">
+      <div class="flex shrink-0 flex-col gap-2 border-b border-hairline px-5 pt-3 pb-3">
+        <div class="flex items-center gap-2">${tile(slug)}<span class="min-w-0 grow truncate font-mono text-app font-semibold text-ink">${k[1]}</span>
+          <div class="relative">${titleButton("All providers", "all")}${p.picker ? providerPicker() : ""}</div></div>
+        <span class="px-1 text-app-sm text-muted">${k[4]}</span>
+        <div class="relative flex flex-wrap items-center gap-1.5" role="group">
+          <span class="flex items-center gap-1.5 rounded-full border border-hairline bg-subtle px-2.5 py-0.5 font-mono text-app-2xs"><span class="text-dim">status</span><span class="${STATUS_TONE[status]}">${status}</span></span>
+          ${settingChip("active", "active", active ? "yes" : "no", "", false, "")}
+          ${settingChip("model", "default model", model || "choose a model", "What sessions with this provider run on, unless a project or an agent picks another.", p.chip === "model", `<div class="flex flex-col gap-1"><span class="text-app-2xs text-muted">Default Agent Model</span>${drop("p-model", model, "", "Choose a model", p.menu ? dropMenu(GPT, model, p.hover, true) : "")}<span class="text-app-2xs text-dim">Type to filter the ${GPT.length} models this provider reported</span></div>`)}
+        </div>
+      </div>
+      <div class="flex min-h-0 grow flex-col justify-between gap-3 overflow-y-auto px-5 py-3">
+        <div class="flex flex-col gap-3">${authBlock(slug)}${modelDetails(model)}${advanced(slug, status === "connected")}</div>
+        <div class="flex flex-col gap-3"><div class="flex items-start gap-2 rounded border border-hairline bg-canvas px-2.5 py-2">${icon("mt-0.5 size-4 shrink-0 text-accent-cyan", GLYPH.shield)}<p class="text-app-2xs leading-4 text-dim">Keys are stored in your OS keyring, not in Koda's config file and not on any server. A config file is safe to paste into a bug report; a key is not.</p></div></div>
+      </div>
+    </div>
+    ${screenFooter("", (saved ? action("Remove provider", "danger", GLYPH.close, null, p.busy) : "") + action(p.busy ? "Testing…" : "Test Connection", "secondary", RELOAD, "test", p.busy) + action("Cancel", "secondary") + action("Save &amp; Set as Active", "primary", GLYPH.check, "save"))}
+  </div>`;
+  return prefs("Models &amp; providers", pane);
+}
+const renderProviders = () => { $("centre").innerHTML = providers(); settle(); };
+
+const pickRow = (id, label, chosen, active, trailing = "") => `<button ${id ? `id="${id}"` : ""} type="button" role="option" class="${active ? "flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-md bg-hover px-2.5 text-left" : "flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-md px-2.5 text-left"}"><span class="${chosen ? "w-3.5 shrink-0 text-accent-cyan-bright" : "invisible w-3.5 shrink-0"}">${icon("size-3.5", GLYPH.check)}</span><span class="${chosen ? "min-w-0 truncate font-mono text-app-xs text-accent-cyan-bright" : active ? "min-w-0 truncate font-mono text-app-xs text-ink" : "min-w-0 truncate font-mono text-app-xs text-muted"}">${label}</span>${trailing ? `<span class="ml-auto flex shrink-0 items-center gap-1">${trailing}</span>` : ""}</button>`;
+const GPT = ["gpt-5", "gpt-5-codex", "gpt-5-mini"];
+function setHeaderModel(model, provider) {
+  const chip = $("model-wrap").querySelector("button");
+  chip.id = "model-chip";
+  chip.querySelector(".font-semibold").textContent = model;
+  chip.querySelector(".text-accent-cyan-bright")?.remove();
+  chip.title = `${provider}: ${model}`;
+}
+
+const dropTrigger = (id, value, placeholder, cls) => `<button id="${id}" type="button" aria-haspopup="listbox" class="flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded border border-hairline bg-subtle px-2.5 py-1 text-left font-mono text-app-2xs outline-none transition hover:bg-hover focus:border-accent-cyan/60 disabled:cursor-not-allowed disabled:opacity-50"><span class="${value ? "grow truncate font-semibold text-ink" : "grow truncate text-dim"}">${value || placeholder}</span>${icon("size-2.5 shrink-0 text-muted", CHEV)}</button>`;
+const drop = (id, value, cls, placeholder, menu = "") => `<div class="relative min-w-0 ${cls}">${dropTrigger(id, value, placeholder)}${menu}</div>`;
+const dropMenu = (options, value, hover, filter) => `<div class="${ent("drop")}absolute z-40 flex max-h-80 w-max min-w-full max-w-[28rem] flex-col overflow-hidden rounded-lg border border-hairline bg-elevated elevated-shadow left-0 top-full mt-1.5">${filter ? `<div class="flex shrink-0 items-center gap-2 border-b border-hairline px-2.5 py-1.5">${icon("size-3 shrink-0 text-dim", GLYPH.search)}<span class="min-w-0 grow font-mono text-app-xs text-dim">Filter</span></div>` : ""}<ul class="flex flex-col overflow-y-auto p-1" role="listbox">${options.map((o) => { const [label, off] = Array.isArray(o) ? o : [o, false]; return `<li role="presentation">${off ? `<button type="button" role="option" disabled class="flex h-[30px] w-full cursor-default items-center gap-2 rounded-md px-2.5 text-left"><span class="invisible w-3.5 shrink-0">${icon("size-3.5", GLYPH.check)}</span><span class="min-w-0 truncate font-mono text-app-xs text-dim">${label}</span></button>` : pickRow(`o-${label.replace(/[^a-z0-9]/gi, "")}`, label, label === value, label === hover)}</li>`; }).join("")}</ul></div>`;
+
+async function play(id) {
+  p = fresh(); was = new Set();
+  mountShell("");
+  setHeaderModel("claude-sonnet-5-5", "Anthropic");
+  renderProviders();
+  await sleep(1400); alive(id);
+
+  await click($("all"), id);
+  p.picker = true; renderProviders(); await sleep(1300); alive(id);
+  await click(q('[data-pick="chatgpt"]'), id);
+  p.picker = false; p.selected = "chatgpt"; p.feedback = ""; renderProviders(); await sleep(1200); alive(id);
+  await click($("signin"), id);
+  p.busy = true; p.feedback = "starting"; renderProviders(); await sleep(700); alive(id);
+  p.feedback = "awaiting"; renderProviders(); await sleep(2400); alive(id);
+  p.busy = false; p.feedback = "signed-in"; p.rows.chatgpt = { status: "connected", model: "" }; renderProviders(); await sleep(1600); alive(id);
+
+  await click($("chip-model"), id);
+  p.chip = "model"; renderProviders(); await sleep(800); alive(id);
+  await click($("p-model"), id);
+  p.menu = true; renderProviders(); await sleep(700); alive(id);
+  await pointTo($("o-gpt5"), id);
+  p.hover = "gpt-5"; renderProviders(); await sleep(250); alive(id);
+  $("o-gpt5").classList.add("press"); await sleep(160); alive(id);
+  p.rows.chatgpt.model = "gpt-5"; p.menu = false; p.hover = null; renderProviders(); await sleep(700); alive(id);
+  await click($("chip-model"), id);
+  p.chip = null; renderProviders(); await sleep(1600); alive(id);
+
+  await click($("save"), id);
+  p.saved = { ...p.rows }; p.active = "chatgpt";
+  $("centre").innerHTML = ""; settle();
+  setHeaderModel("gpt-5", "ChatGPT");
+  await sleep(500); alive(id);
+  await pointTo($("model-chip"), id);
+  await sleep(3200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

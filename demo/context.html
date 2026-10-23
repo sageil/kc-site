@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Context Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="frame.css">
+<style>.stage { height: 520px; }</style>
+<script src="frame.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div class="flex min-h-0 grow flex-col bg-canvas">
+    <div class="flex shrink-0 items-start gap-2 border-b border-hairline bg-subtle/60 px-4 py-3 font-mono text-app-xs font-semibold text-accent-cyan-bright">
+      <svg class="mt-0.5 size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5.2"/><path d="m5.6 11.6 6.4-6.4 6.4 6.4"/></svg>
+      <p class="m-0">Who calls should_retry, is it tested, and have we hit retry bugs before?</p>
+    </div>
+    <div class="grid min-h-0 grow grid-cols-2 gap-4 p-4">
+      <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-hairline bg-panel">
+        <header class="flex items-center justify-between gap-3 border-b border-hairline px-3 py-2 font-mono text-app-xs"><span class="font-semibold text-muted">Searching</span><span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase border-hairline bg-subtle text-muted"><span>without a map</span></span></header>
+        <div class="min-h-0 grow overflow-hidden p-3"><div class="relative flex flex-col pl-5"><span class="absolute top-2.5 bottom-2.5 left-[7px] w-px bg-hairline"></span><div id="left"></div></div></div>
+        <footer id="left-count" class="flex items-center justify-between gap-3 border-t border-hairline px-3 py-2 font-mono text-app-2xs text-dim tabular-nums"></footer>
+      </section>
+      <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-accent-indigo/40 bg-panel">
+        <header class="flex items-center justify-between gap-3 border-b border-hairline px-3 py-2 font-mono text-app-xs"><span class="font-semibold text-accent-indigo-bright">With the graph and memory</span><span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase border-accent-indigo/35 bg-accent-indigo/12 text-accent-indigo-bright"><span>KodaCode</span></span></header>
+        <div class="min-h-0 grow overflow-hidden p-3"><div class="relative flex flex-col pl-5"><span class="absolute top-2.5 bottom-2.5 left-[7px] w-px bg-hairline"></span><div id="right"></div></div><div id="answer"></div></div>
+        <footer id="right-count" class="flex items-center justify-between gap-3 border-t border-hairline px-3 py-2 font-mono text-app-2xs text-dim tabular-nums"></footer>
+      </section>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+const row = ([verb, subject, count, , detail], running) => `<div class="enter relative"><span class="absolute top-[9px] left-[-17px] size-2 rounded-full border ${running ? "border-transparent bg-accent-cyan" : "border-dim bg-panel"}"></span><div class="flex w-full min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left font-mono text-app-xs transition hover:bg-subtle"><span class="min-w-0 grow truncate"><span class="text-muted">${verb} </span><span class="text-ink/90">${subject}</span>${detail ? `<span class="text-dim"> ${detail}</span>` : ""}</span><span class="flex shrink-0 items-center gap-1.5 text-app-2xs text-dim"><span class="tabular-nums">${running ? "no result yet" : count}</span>${verb === "Read" ? "" : icon("size-3 shrink-0 transition-transform", GLYPH.chevronRight)}</span></div></div>`;
+const searching = [
+  ["Searched", "\"should_retry\"", "7 lines", 0],
+  ["Read", "src/webhooks/send.rs", "212 lines", 212],
+  ["Read", "src/http/router.rs", "340 lines", 340],
+  ["Searched", "\"fn should_retry\"", "1 line", 0],
+  ["Read", "src/webhooks/retry.rs", "96 lines", 96],
+  ["Searched", "\"should_retry\"", "3 lines", 0, "in tests"],
+  ["Read", "tests/webhooks.rs", "180 lines", 180],
+  ["Ran", "git log --oneline --grep retry", "24 lines", 0],
+  ["Read", "CHANGELOG.md", "410 lines", 410],
+];
+const mapped = [
+  ["Explored the code:", "should_retry", "14 lines"],
+  ["Recalled memories", "“webhook retries”", "9 lines"],
+];
+const counter = (calls, lines, extra) => `<span>${calls} tool call${calls === 1 ? "" : "s"}</span><span>${extra || `${lines.toLocaleString()} lines read into context`}</span>`;
+
+async function play(id) {
+  $("left").innerHTML = ""; $("right").innerHTML = ""; $("answer").innerHTML = "";
+  $("left-count").innerHTML = counter(0, 0); $("right-count").innerHTML = counter(0, 0, "nothing read yet");
+  await sleep(900); alive(id);
+  let lines = 0;
+  for (let i = 0; i < searching.length; i++) {
+    const n = searching[i][3];
+    $("left").insertAdjacentHTML("beforeend", row(searching[i], true));
+    if (i < mapped.length) $("right").insertAdjacentHTML("beforeend", row(mapped[i], true));
+    await sleep(650); alive(id);
+    $("left").lastElementChild.outerHTML = row(searching[i], false);
+    lines += n;
+    $("left-count").innerHTML = counter(i + 1, lines);
+    if (i < mapped.length) {
+      $("right").lastElementChild.outerHTML = row(mapped[i], false);
+      $("right-count").innerHTML = counter(i + 1, 0, "answers only, no whole files");
+    }
+    if (i === mapped.length - 1) {
+      $("answer").innerHTML = `<div class="enter mt-3 flex flex-col gap-1.5 rounded-lg border border-hairline bg-canvas p-3 font-mono text-app-xs leading-relaxed text-ink">
+        <p class="m-0"><span class="text-dim">Callers </span>send_webhook · retries_on_503 · stops_on_410</p>
+        <p class="m-0"><span class="text-dim">Tests </span><span class="text-accent-emerald-bright">2 within 3 caller hops</span></p>
+        <p class="m-0"><span class="text-dim">Learned before </span>“Stop retrying on 410 Gone” <span class="text-dim">solves</span> “Dead endpoints are retried forever”</p></div>`;
+    }
+  }
+  await sleep(4200); alive(id);
+}
+fitStage(520);
+loop(play)();
+</script>
+</body>
+</html>

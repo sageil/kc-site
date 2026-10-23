@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode: the AI coding agent that orchestrates agents</title>
+<meta name="description" content="A desktop AI coding agent: a lead that delegates to your crew, scheduled automations, and goals that run in their own copy. Your models. macOS, Windows, Linux.">
+<link rel="canonical" href="https://kodacode.dev/">
+<meta name="theme-color" content="#f4f0e8">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="KodaCode">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://kodacode.dev/">
+<meta property="og:title" content="KodaCode · Stop paying agents to rediscover your codebase.">
+<meta property="og:description" content="A lead agent that delegates, automations that check anything on a schedule, goals that run on their own. Each on the model you choose.">
+<meta property="og:image" content="https://kodacode.dev/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="KodaCode: Agents write code, KodaCode orchestrates.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="KodaCode · Stop paying agents to rediscover your codebase.">
+<meta name="twitter:description" content="A lead agent that delegates, automations that check anything on a schedule, goals that run on their own. Each on the model you choose.">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<link rel="preload" href="fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="site.css?v=7">
+<script src="theme.js?v=6"></script>
+<script src="site.js" defer></script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "Organization", "@id": "https://kodacode.dev/#org", "name": "KodaCode", "url": "https://kodacode.dev/", "logo": "https://kodacode.dev/assets/icon-512.png"}, {"@type": "WebSite", "@id": "https://kodacode.dev/#site", "url": "https://kodacode.dev/", "name": "KodaCode", "publisher": {"@id": "https://kodacode.dev/#org"}}, {"@type": "SoftwareApplication", "@id": "https://kodacode.dev/#app", "name": "KodaCode", "applicationCategory": "DeveloperApplication", "operatingSystem": "macOS, Windows, Linux", "url": "https://kodacode.dev/", "image": "https://kodacode.dev/assets/og.png", "publisher": {"@id": "https://kodacode.dev/#org"}, "featureList": ["Lead agent that delegates to agents you define", "Scheduled automations decided by small local or hosted models", "Goals that run in their own copy of the project and merge as one commit", "Code graph of who calls what", "Project memory of problems, fixes and decisions", "Editor with in-place review of agent edits", "Code review by security, quality, best-practice and project-rules reviewers, with dependency and secret scanners", "Ask-first approvals for edits and commands", "Docker and Podman isolation per project, with a terminal inside the container", "API keys stored in the system keychain", "Bring your own models: Anthropic, OpenAI, Google, DeepSeek, Qwen, OpenRouter, Ollama or your own endpoint", "MCP servers over stdio or HTTP, with OAuth sign-in and per-tool approvals", "Skills, web search and web fetch"], "description": "A desktop AI coding agent: a lead that delegates to your crew, scheduled automations, and goals that run in their own copy. Your models. macOS, Windows, Linux.", "offers": {"@type": "Offer", "price": "15.00", "priceCurrency": "USD", "url": "https://kodacode.dev/pricing/", "availability": "https://schema.org/PreOrder"}}]}</script>
+</head>
+<body>
+<div class="sheet">
+  <header class="bar">
+    <a class="id" href="./"><img src="assets/icon.svg" alt="">KodaCode</a>
+    <nav aria-label="Pages"><details class="menu"><summary>Features</summary><div class="panel"><div><span class="kicker">Works without you</span><a href="crew/"><b>Crew</b><span>Hand each job to the right agent</span></a><a href="automations/"><b>Automations</b><span>A cheap model checks, an agent acts</span></a><a href="goals/"><b>Goals</b><span>Plan it and leave it</span></a></div><div><span class="kicker">Knows your code</span><a href="graph/"><b>Code graph</b><span>Who calls what, without searching</span></a><a href="memory/"><b>Memory</b><span>Problems, fixes and decisions, linked by why</span></a><a href="editor/"><b>Editor</b><span>Ask about a selection, review edits in place</span></a><a href="review/"><b>Code review</b><span>Four reviewers, worst problems first</span></a></div><div><span class="kicker">Stays in bounds</span><a href="control/"><b>Control</b><span>Ask first, or let it run</span></a><a href="isolation/"><b>Isolation</b><span>A container per project, your terminal inside</span></a></div><div><span class="kicker">Plugs into</span><a href="models/"><b>Models</b><span>Yours, a different one per agent</span></a><a href="mcp/"><b>MCP servers</b><span>Tools from any MCP server</span></a><a href="skills/"><b>Skills &amp; web</b><span>Deep research, web search, your own skills</span></a></div></div></details><a href="models/">Models</a><a href="pricing/">Pricing</a><a href="faq/">FAQ</a></nav>
+    <div class="end"><details class="appearance"><summary aria-label="Appearance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/><circle cx="10.5" cy="7.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="7.5" r="1.2" fill="currentColor"/></svg></summary><div class="look" role="dialog" aria-label="Appearance"><b>Appearance</b><span class="kicker">Mode</span><div class="seg"><button type="button" data-mode="light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>Light</button><button type="button" data-mode="dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.1A8.5 8.5 0 1 1 9.9 3.5a6.6 6.6 0 0 0 10.6 10.6z"/></svg>Dark</button><button type="button" data-mode="system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>System</button></div><span class="kicker">Colour</span><div class="swatches"><button type="button" data-palette="pure" data-name="Pure" aria-label="Pure" style="--l:#ffffff;--d:#000000"></button><button type="button" data-palette="paper" data-name="Paper" aria-label="Paper" style="--l:#f4f0e8;--d:#131419"></button><button type="button" data-palette="midnight" data-name="Midnight" aria-label="Midnight" style="--l:#eef1f8;--d:#0b1020"></button><button type="button" data-palette="graphite" data-name="Graphite" aria-label="Graphite" style="--l:#f0f0ee;--d:#121214"></button><button type="button" data-palette="forest" data-name="Forest" aria-label="Forest" style="--l:#eef3ee;--d:#0c1411"></button><button type="button" data-palette="plum" data-name="Plum" aria-label="Plum" style="--l:#f5f0f7;--d:#140f1d"></button></div><span class="kicker">Background</span><div class="thumbs"><button type="button" class="thumb" data-bg="grid"><span class="art"><span class="grid"></span></span>Grid</button><button type="button" class="thumb" data-bg="network"><span class="art"><canvas data-kind="network"></canvas></span>Network</button><button type="button" class="thumb" data-bg="dots"><span class="art"><canvas data-kind="dots"></canvas></span>Dots</button><button type="button" class="thumb" data-bg="aurora"><span class="art"><span class="aurora"><i></i><i></i><i></i></span></span>Aurora</button><button type="button" class="thumb" data-bg="glow"><span class="art"><span class="glow"></span></span>Glow</button><button type="button" class="thumb" data-bg="still"><span class="art"><span class="still"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7v10M15 7v10"/></svg></span></span>Still</button></div></div></details><a class="dl" href="download/">Coming soon</a></div>
+  </header>
+
+  <section class="hero">
+    <div class="kicker">AI agent orchestration for your codebase</div>
+    <h1 class="words">Stop paying agents to <em>rediscover</em> <span class="mark">your codebase.</span></h1>
+    <p class="lede">The agent orchestration platform built on <b>code intelligence</b> and <b>persistent memory</b>, so every agent starts with the context it needs and every token drives real progress.</p>
+    <div class="cta"><a class="solid" href="#fig">Watch it work</a><a href="pricing/">See pricing</a></div>
+    <div class="roles">
+      <div><b>Lead</b><span>Splits up the work and hands it out</span></div>
+      <div><b>Crew</b><span>Agents you set up, each on its own model</span></div>
+      <div><b>Automate</b><span>Checks that run on a schedule</span></div>
+      <div><b>Goals</b><span>Plans that keep going while you're away</span></div>
+    </div>
+  </section>
+
+  <section class="fig" id="fig">
+    <div class="fig-head"><span>Fig. 1 — The workspace</span><span>Live replay</span></div>
+    <div class="blueprint" id="bp">
+      <svg viewBox="-76 -76 1432 932" aria-hidden="true">
+        <g id="lines"></g>
+        <g id="dims"></g>
+      </svg>
+      <iframe data-follow src="demo/hero.html?embed&theme=follow" title="KodaCode at work"></iframe>
+    </div>
+    <div class="fig-cap"><span>A real session replayed in the app. A test fails, the agent finds the bug and fixes it, and you approve the change.</span><button id="redraw" type="button">Redraw</button></div>
+  </section>
+
+  <section class="feature" id="map">
+    <div class="feature-head">
+      <div class="num">01<span>Less rediscovery</span></div>
+      <div>
+        <h2>Every task shouldn’t <em>start from scratch.</em></h2>
+        <div class="pillars">
+          <div><b>The code graph</b><p>Reveals how your project fits together: every file, every function, and what calls what.</p></div>
+          <div><b>Memory</b><p>Preserves the decisions, fixes, conventions, and hard-won lessons that would otherwise be lost between sessions.</p></div>
+        </div>
+        <p class="together">Together, they cut unnecessary exploration, reduce repeated work, and help agents spend their context and compute where it matters most.</p>
+        <p class="closer">Less rediscovery. Less wasted context. <em>More progress per token.</em></p>
+      </div>
+    </div>
+    <div class="mm" id="mm">
+      <div class="lbl l"><span class="tag"><b>Others</b><span data-count="left">0 calls · 0 lines</span></span><i class="lead"></i></div>
+      <div class="lbl r"><span class="tag"><b>KodaCode</b><span data-count="right">0 calls · nothing read</span></span><i class="lead"></i></div>
+      <div class="live short"><iframe data-follow src="demo/context.html?theme=follow" title="The same question answered by searching, and with the graph and memory" loading="lazy"></iframe></div>
+      <div class="meter">
+        <div class="row them"><b>Others</b><div class="track"><div class="fill" data-bar="left"></div></div><span data-lines="left">0 lines in context</span></div>
+        <div class="row us"><b>KodaCode</b><div class="track"><div class="fill" data-bar="right"></div></div><span>answers only</span></div>
+      </div>
+    </div>
+    <p class="fig-cap"><span>Fig. 2 — The same question, answered both ways, on a sample project.</span></p>
+  </section>
+
+  <section class="points-wrap" id="unique">
+    <div class="feature-head">
+      <div class="num">02<span>Works without you</span></div>
+      <div>
+        <h2>It keeps working <em>when you stop typing.</em></h2>
+        <p>Most AI coding tools wait for your next message. KodaCode can also pass work to other agents, check on things every few hours, and finish a plan in the background while you get on with your day.</p>
+      </div>
+    </div>
+    <div class="points tour">
+      <a href="crew/"><span class="kicker">The crew</span><b>Hand each job to <em>the right agent.</em></b><p>Set up a reviewer, a test writer or a researcher, each with its own instructions and model. The lead decides who gets what.</p><i>See the crew →</i></a>
+      <a href="automations/"><span class="kicker">Automations</span><b>Automate <em>anything</em> the agent can read.</b><p>A cheap model checks on a schedule and only starts an agent when something actually needs doing.</p><i>See automations →</i></a>
+      <a href="goals/"><span class="kicker">Goals</span><b>Plan it <em>and leave it.</em></b><p>It works in a separate copy of your code, so your files stay put, and you merge the result as one commit.</p><i>See goals →</i></a>
+    </div>
+  </section>
+
+  <section class="feature" id="automations">
+    <div class="feature-head">
+      <div class="num">03<span>Automations</span></div>
+      <div>
+        <h2>Watch one <em>get made.</em></h2>
+        <p>This one checks a Kubernetes cluster named pharma every 15 minutes. A small model on your own machine reads its nodes and pods and decides whether the cluster is healthy. If it is, nothing happens. If it isn't, an agent starts, investigates and reports what it found. Six automations come built in, and you can add as many as you want.</p>
+      </div>
+    </div>
+    <div class="live"><iframe data-follow src="demo/automation-editor.html?theme=follow" title="Making an automation that checks the pharma cluster" loading="lazy"></iframe></div>
+    <p class="fig-cap"><span>Fig. 3 — Making an automation in the app.</span><a href="automations/" style="color:var(--indigo)">How automations work →</a></p>
+  </section>
+
+
+
+  <section class="deeper" id="inside">
+    <div class="num">04<span>Knows your code</span></div>
+    <a href="graph/"><b>Code graph</b><span>See how your code connects, and who calls what</span><i>Explore →</i></a>
+    <a href="memory/"><b>Memory</b><span>Problems, fixes and decisions, linked by why</span><i>Explore →</i></a>
+    <a href="editor/"><b>Editor</b><span>Ask about a selection, review edits in place</span><i>Explore →</i></a>
+    <a href="review/"><b>Code review</b><span>Four reviewers on a change, the worst problems first</span><i>Explore →</i></a>
+  </section>
+
+  <section class="also" id="control">
+    <div class="num">05<span>Stays in bounds</span></div>
+    <table>
+      <tr><td>Changes</td><td>Ask before each edit, or let them apply and keep or discard each file afterwards · <a href="control/">control</a></td></tr>
+      <tr><td>Outside the project</td><td>On your machine, anything that reaches past the project asks you first</td></tr>
+      <tr><td>Undo</td><td>Every run is recorded before it starts. One click puts it back</td></tr>
+      <tr><td>Mid-run</td><td>Steer the agent while it works, or queue what's next</td></tr>
+      <tr><td>Where it runs</td><td>On your machine, or inside Docker or Podman · <a href="isolation/">isolation</a></td></tr>
+      <tr><td>Your keys</td><td>API keys and sign-in tokens live in your system's keychain, never in a plain-text file or an environment variable</td></tr>
+    </table>
+  </section>
+
+  <section class="models" id="models">
+    <div class="num">06<span>Plugs into</span></div>
+    <div><h2>Use the models <em>you already pay for.</em></h2><p>Bring the subscriptions and API keys you already have, and mix them, with a different model for each agent if you like. Add tools from MCP servers, and let agents search the web or follow skills you write.</p></div>
+    <div class="model-band"><div id="model-band"></div></div>
+    <div class="deeper" style="grid-column:1/-1;padding:0;border:0">
+      <a href="models/"><b>Models</b><span>Every provider, and how each one signs in</span><i>Explore →</i></a>
+      <a href="mcp/"><b>MCP servers</b><span>Tools from any MCP server, with approvals</span><i>Explore →</i></a>
+      <a href="skills/"><b>Skills &amp; web</b><span>Deep research, web search and skills you write</span><i>Explore →</i></a>
+    </div>
+  </section>
+
+  <section class="order" id="order">
+    <h2>Try it on <em>your own code.</em></h2>
+    <div class="os">
+      <div><b>macOS</b><span>Desktop app</span><i>Coming soon</i></div>
+      <div><b>Windows</b><span>Desktop app</span><i>Coming soon</i></div>
+      <div><b>Linux</b><span>Desktop app</span><i>Coming soon</i></div>
+    </div>
+    <p>$15 a month after a 14-day trial · <a href="pricing/">Pricing</a> · <a href="faq/">Questions</a></p>
+  </section>
+  <footer><nav class="map" aria-label="All pages"><div><b>Works without you</b><a href="crew/">Crew</a><a href="automations/">Automations</a><a href="goals/">Goals</a></div><div><b>Knows your code</b><a href="graph/">Code graph</a><a href="memory/">Memory</a><a href="editor/">Editor</a><a href="review/">Code review</a></div><div><b>Stays in bounds</b><a href="control/">Control</a><a href="isolation/">Isolation</a></div><div><b>Plugs into</b><a href="models/">Models</a><a href="mcp/">MCP servers</a><a href="skills/">Skills &amp; web</a></div><div><b>KodaCode</b><a href="pricing/">Pricing</a><a href="faq/">FAQ</a><a href="download/">Download</a></div></nav></footer>
+</div>
+</body>
+</html>

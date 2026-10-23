@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Icon Ideas</title>
+<style>
+  body { margin: 0; font: 13px ui-monospace, Menlo, monospace; color: #52525b; background: #fafafa; }
+  h1 { font: 600 15px ui-monospace, Menlo, monospace; letter-spacing: .12em; text-transform: uppercase; color: #09090b; margin: 32px 40px 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; padding: 24px 40px 40px; }
+  .card { border: 1px solid #e4e4e7; border-radius: 12px; background: #fff; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+  .big { display: flex; justify-content: center; }
+  .sizes { display: flex; align-items: flex-end; gap: 14px; padding: 12px; border-radius: 8px; }
+  .sizes.light { background: #f4f4f5; }
+  .sizes.dark { background: #080b11; }
+  .bar { display: flex; align-items: center; gap: 6px; padding: 0 10px; height: 36px; background: #0a0d14; border: 1px solid #1a2130; border-radius: 6px; color: #e2e8f0; font-weight: 600; letter-spacing: .15em; font-size: 11px; }
+  b { color: #09090b; }
+  p { margin: 0; line-height: 1.5; }
+</style>
+</head>
+<body>
+<h1>KodaCode · icon ideas</h1>
+<div class="grid" id="grid"></div>
+<script>
+const ideas = [
+  ["1-chevron-k", "Chevron K", "A K made from a stem and a code chevron. Reads as both the letter and <."],
+  ["2-graph-k", "Graph K", "The K drawn as a node graph, pointing at the code graph that sets Koda apart."],
+  ["3-brace-spark", "Braces + spark", "The app's own agent sparkle held in code braces."],
+  ["4-prompt-k", "Prompt k_", "A lowercase k followed by a terminal cursor. Quiet and typographic."],
+  ["5-polaris", "Polaris", "A north star over an aurora: the northern roots of the name, without the dog."],
+  ["6-kc-ring", "KC ring", "A gradient C wrapped around a K: the KodaCode monogram."],
+];
+document.getElementById("grid").innerHTML = ideas.map(([file, name, note]) => `
+  <div class="card">
+    <div class="big"><img src="${file}.svg" width="180" height="180" alt=""></div>
+    <p><b>${name}</b> · ${note}</p>
+    <div class="sizes light">${[64, 32, 16].map((s) => `<img src="${file}.svg" width="${s}" height="${s}" alt="">`).join("")}</div>
+    <div class="sizes dark">${[64, 32].map((s) => `<img src="${file}.svg" width="${s}" height="${s}" alt="">`).join("")}<div class="bar"><img src="${file}.svg" width="20" height="20" alt="">KODA</div></div>
+  </div>`).join("");
+</script>
+</body>
+</html>

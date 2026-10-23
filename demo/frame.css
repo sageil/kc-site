@@ -1,0 +1,12 @@
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+body { display: flex; align-items: center; justify-content: center; font-family: var(--font-sans); color: var(--koda-ink); }
+.stage { position: relative; width: 1280px; height: 780px; transform-origin: center; flex-shrink: 0; }
+.window { width: 100%; height: 100%; border-radius: 12px; overflow: hidden; border: 1px solid var(--koda-hairline); box-shadow: 0 30px 80px rgb(0 0 0 / 0.35); display: flex; flex-direction: column; background: var(--koda-canvas); }
+.titlebar { height: 28px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--koda-well); border-bottom: 1px solid var(--koda-hairline); }
+.titlebar i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+.press { transform: scale(0.94); filter: brightness(1.25); transition: transform .12s, filter .12s; }
+.enter { animation: enter .3s ease-out both; }
+@keyframes enter { from { opacity: 0; transform: translateY(4px); } }
+.caret::after { content: ""; display: inline-block; width: 7px; height: 13px; margin-left: 1px; vertical-align: -2px; background: var(--koda-accent-indigo-bright); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.pointer { position: absolute; z-index: 60; width: 18px; height: 18px; pointer-events: none; transition: left .55s cubic-bezier(.5,0,.2,1), top .55s cubic-bezier(.5,0,.2,1); filter: drop-shadow(0 2px 3px rgb(0 0 0 / .4)); }

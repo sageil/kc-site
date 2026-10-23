@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Memory Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const memories = [
+  { id: "3f9a2c71", kind: "problem", title: "Webhooks time out in staging", summary: "Deliveries to slow endpoints fail after about five seconds, only in staging.", content: "Deliveries to slow endpoints fail after about five seconds.\nOnly in staging; production is fine.", tags: ["webhooks", "staging"], importance: 0.8, created: "2026-10-02 09:14", updated: "2026-10-03 16:40", version: 2,
+    history: [["v2", "2026-10-03 16:40", "Webhooks time out in staging", "Deliveries to slow endpoints fail after about five seconds.\nOnly in staging; production is fine."], ["v1", "2026-10-02 09:14", "Webhook deliveries failing", "Some deliveries fail in staging."]] },
+  { id: "a81c04de", kind: "solution", title: "Raise the delivery timeout to 10 s", summary: "WEBHOOK_TIMEOUT=10s, with the proxy limit raised to match.", content: "Set WEBHOOK_TIMEOUT=10s.\nRaised proxy_read_timeout to 12s in deploy/staging/nginx.conf.", tags: ["webhooks", "config"], importance: 0.9, created: "2026-10-03 17:05", updated: "2026-10-03 17:05", version: 1 },
+  { id: "c2b77e10", kind: "error", title: "502 from the staging proxy after 5 s", summary: "upstream timed out while reading response header", content: "upstream timed out (110: Connection timed out) while reading response header from upstream", tags: ["proxy", "staging"], importance: 0.6, created: "2026-10-02 09:20", updated: "2026-10-02 09:20", version: 1 },
+  { id: "5d0e9b43", kind: "technology", title: "Staging runs behind an nginx proxy", summary: "Its read timeout lives in deploy/staging/nginx.conf.", content: "Staging sits behind nginx. Its read timeout lives in deploy/staging/nginx.conf.", tags: ["staging", "deploy"], importance: 0.5, created: "2026-09-28 11:02", updated: "2026-09-28 11:02", version: 1 },
+  { id: "77ad31f8", kind: "problem", title: "Dead endpoints are retried forever", summary: "A 410 Gone reply was treated like a 503 and retried.", content: "A 410 Gone reply was treated like a 503 and retried until the limit.", tags: ["webhooks", "retries"], importance: 0.7, created: "2026-10-09 14:31", updated: "2026-10-09 14:31", version: 1 },
+  { id: "e4f61a2b", kind: "fix", title: "Stop retrying on 410 Gone", summary: "should_retry() returns false for 410.", content: "should_retry() returns false for 400, 401 and 410.", tags: ["webhooks", "retries"], importance: 0.8, created: "2026-10-09 15:02", updated: "2026-10-09 15:02", version: 1 },
+  { id: "19bc5d07", kind: "command", title: "Replay a delivery", summary: "just replay <delivery-id>", content: "just replay <delivery-id>", tags: ["webhooks", "ops"], importance: 0.4, created: "2026-09-30 10:12", updated: "2026-09-30 10:12", version: 1 },
+  { id: "b6e2f9c4", kind: "workflow", title: "Rotate a webhook secret", summary: "Sign with both secrets for a day, then drop the old one.", content: "1. Create the new secret.\n2. Sign with both for a day.\n3. Drop the old one.", tags: ["webhooks", "security"], importance: 0.6, created: "2026-09-30 10:40", updated: "2026-10-01 08:55", version: 2 },
+];
+const baseRels = [["a81c04de", "3f9a2c71", "SOLVES"], ["c2b77e10", "3f9a2c71", "CAUSES"], ["5d0e9b43", "c2b77e10", "RELATED_TO"], ["e4f61a2b", "77ad31f8", "SOLVES"], ["77ad31f8", "3f9a2c71", "SIMILAR_TO"]];
+const tone = (k) => ({ problem: "rose", error: "rose", solution: "emerald", fix: "emerald", task: "cyan", workflow: "cyan", command: "cyan", code_pattern: "cyan", project: "amber", technology: "amber", file_context: "amber" }[k] || "neutral");
+const DOT = { rose: "bg-accent-rose", emerald: "bg-accent-emerald", cyan: "bg-accent-cyan", amber: "bg-accent-amber", neutral: "bg-dim" };
+const STROKE = { rose: "var(--koda-accent-rose)", emerald: "var(--koda-accent-emerald)", cyan: "var(--koda-accent-cyan)", amber: "var(--koda-accent-amber)", neutral: "var(--koda-dim)" };
+const CHIP = { rose: "border-accent-rose/35 bg-accent-rose/12 text-accent-rose", emerald: "border-accent-emerald/35 bg-accent-emerald/12 text-accent-emerald-bright", cyan: "border-accent-cyan/35 bg-accent-cyan/12 text-accent-cyan-bright", amber: "border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright", neutral: "border-hairline bg-subtle text-muted" };
+const chip = (label, t) => `<span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase ${CHIP[t]}"><span class="truncate">${label}</span></span>`;
+const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const byId = (id) => memories.find((m) => m.id === id);
+const RELATIONSHIPS = ["CAUSES", "TRIGGERS", "LEADS_TO", "PREVENTS", "BREAKS", "SOLVES", "ADDRESSES", "ALTERNATIVE_TO", "IMPROVES", "REPLACES", "OCCURS_IN", "APPLIES_TO", "WORKS_WITH", "REQUIRES", "USED_IN", "BUILDS_ON", "CONTRADICTS", "CONFIRMS", "GENERALIZES", "SPECIALIZES", "SIMILAR_TO", "VARIANT_OF", "RELATED_TO", "ANALOGY_TO", "OPPOSITE_OF", "FOLLOWS", "DEPENDS_ON", "ENABLES", "BLOCKS", "PARALLEL_TO", "EFFECTIVE_FOR", "INEFFECTIVE_FOR", "PREFERRED_OVER", "DEPRECATED_BY", "VALIDATED_BY", "INVOLVES", "PART_OF", "EXECUTED_IN", "EXHIBITS", "ATTEMPTED_SOLUTION", "IN_SESSION", "MODIFIES", "CREATES", "FOUND_IN"];
+const RELOAD = ["M21 12a9 9 0 1 1-2.64-6.36", "M21 3v6h-6"];
+const CHECK = ["M20 6 9 17l-5-5"];
+
+const state = { view: "list", query: "", kind: null, opened: null, panel: "detail", rels: baseRels.slice(), chip: false, link: null, drop: null, needle: "" };
+
+mountShell(`<main class="flex min-h-0 grow flex-col overflow-hidden bg-canvas">
+  <header class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4">
+    <div class="flex min-w-0 items-center gap-2">${icon("size-4 shrink-0 text-accent-cyan-bright", GLYPH.hub)}<h1 class="shrink-0 font-mono text-app-xs font-bold text-ink">Memory</h1><span id="caption" class="truncate text-app-xs text-muted"></span></div>
+    <div class="flex shrink-0 items-center gap-1.5"><div id="views" class="flex overflow-hidden rounded border border-hairline bg-subtle font-mono text-app-2xs" role="group" aria-label="View"></div></div>
+  </header>
+  <div id="body" class="flex min-h-0 grow flex-col overflow-hidden"></div>
+  <footer class="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-3 border-t border-hairline bg-panel px-4 py-2">
+    <div class="flex min-w-0 items-center gap-2 font-mono text-app-2xs text-muted"><span class="truncate">~/dev/acme-api/.koda/memory/memory.db</span></div>
+    <div id="actions" class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2"></div>
+  </footer>
+</main>`);
+
+const shown = () => memories.filter((m) => (!state.kind || m.kind === state.kind) && (!state.query || [m.title, m.summary, m.content, m.tags.join(" ")].some((t) => t.toLowerCase().includes(state.query.toLowerCase()))));
+const ACTION = { primary: "border-accent-cyan/45 bg-accent-cyan/10 font-medium text-accent-cyan-bright hover:border-accent-cyan hover:bg-accent-cyan/18", secondary: "border-hairline bg-subtle text-ink/80 hover:bg-hover hover:text-ink", danger: "border-accent-rose/40 bg-accent-rose/10 text-accent-rose hover:bg-accent-rose/20" };
+const action = (label, kind, glyph) => `<button type="button" data-act="${label}" class="flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${ACTION[kind]}">${glyph ? icon("size-3.5 shrink-0", glyph) : ""}${label}</button>`;
+
+function renderTop() {
+  const avg = memories.reduce((a, m) => a + m.importance, 0) / memories.length;
+  $("caption").textContent = `${memories.length} memories · ${state.rels.length} links · avg importance ${avg.toFixed(2)}`;
+  $("views").innerHTML = [["list", "List"], ["graph", "Graph"], ["timeline", "Timeline"]].map(([v, l]) => {
+    const on = state.view === v && !state.opened;
+    return `<button type="button" data-view="${v}" aria-pressed="${on}" class="${on ? "cursor-pointer border-r border-hairline bg-accent-cyan/10 px-2.5 py-1 text-accent-cyan-bright last:border-r-0" : "cursor-pointer border-r border-hairline px-2.5 py-1 text-muted transition hover:bg-hover hover:text-ink last:border-r-0"}">${l}</button>`;
+  }).join("");
+}
+
+function renderBrowse() {
+  const kinds = [...new Set(memories.map((m) => m.kind))];
+  const tchip = (label, count, on, key) => `<button type="button" data-kind="${key}" aria-pressed="${on}" class="${on ? "cursor-pointer rounded border border-accent-cyan/50 bg-accent-cyan/10 px-1.5 py-0.5 font-mono text-app-2xs text-accent-cyan-bright" : "cursor-pointer rounded border border-hairline bg-subtle px-1.5 py-0.5 font-mono text-app-2xs text-muted transition hover:text-ink"}"><span class="flex items-center gap-1.5">${label}<span class="rounded bg-canvas px-1 tabular-nums text-dim">${count}</span></span></button>`;
+  const search = `<span id="search" class="w-64 max-w-full rounded border bg-canvas px-2 py-1 font-mono text-app-xs ${state.query ? "border-accent-cyan/50 text-ink" : "border-hairline text-dim"}">${state.query || "Search memories"}</span>`;
+  const bar = `<div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline px-4 py-2">${search}${tchip("all", memories.length, !state.kind, "")}${kinds.map((k) => tchip(k.replace("_", " "), memories.filter((m) => m.kind === k).length, state.kind === k, k)).join("")}</div>`;
+  const list = shown();
+  let main;
+  if (!list.length) {
+    main = '<p class="p-4 text-app-sm text-muted">No memory matches this search.</p>';
+  } else if (state.view === "list") {
+    main = `<div class="flex flex-col">${list.slice().sort((a, b) => b.importance - a.importance).map((m) => `<button type="button" data-id="${m.id}" aria-pressed="false" class="flex w-full cursor-pointer flex-col gap-1 border-b border-l-2 border-b-hairline border-l-transparent px-4 py-2.5 text-left transition hover:bg-hover">
+      <span class="flex min-w-0 items-center gap-2"><span class="size-2 shrink-0 rounded-full ${DOT[tone(m.kind)]}"></span><span class="truncate text-app-sm font-medium text-ink">${m.title}</span></span>
+      <span class="line-clamp-2 text-app-xs text-muted">${esc(m.summary)}</span>
+      <span class="flex gap-3 font-mono text-app-2xs text-dim tabular-nums"><span>${m.kind}</span><span>importance ${m.importance.toFixed(1)}</span><span>${m.updated.slice(0, 10)}</span></span></button>`).join("")}</div>`;
+  } else if (state.view === "graph") {
+    const W = 720, H = 520, cx = W / 2, cy = H / 2, ring = Math.max(Math.min(cx, cy) - 90, 60);
+    const placed = list.map((m, i) => { const a = (Math.PI * 2 * i) / list.length - Math.PI / 2; return list.length === 1 ? [m, cx, cy] : [m, cx + ring * Math.cos(a), cy + ring * Math.sin(a)]; });
+    const pos = (id) => placed.find(([m]) => m.id === id);
+    let edges = "";
+    for (const [a, b, kind] of state.rels) {
+      const A = pos(a), B = pos(b);
+      if (!A || !B) continue;
+      edges += `<g><line x1="${A[1]}" y1="${A[2]}" x2="${B[1]}" y2="${B[2]}" style="stroke: var(--koda-hairline); stroke-width: 1.5"/><text x="${(A[1] + B[1]) / 2}" y="${(A[2] + B[2]) / 2 - 4}" text-anchor="middle" style="font-family: var(--font-mono); font-size: 10px; fill: var(--koda-dim)">${kind}</text></g>`;
+    }
+    const nodes = placed.map(([m, x, y]) => {
+      const r = 14 + m.importance * 16, color = STROKE[tone(m.kind)];
+      return `<g data-id="${m.id}" style="cursor: pointer"><circle cx="${x}" cy="${y}" r="${r}" style="fill: var(--koda-panel); stroke: ${color}; stroke-width: 2"/><text x="${x}" y="${y + 4}" text-anchor="middle" style="font-family: var(--font-mono); font-size: 11px; fill: ${color}">${m.importance.toFixed(1)}</text><text x="${x}" y="${y + r + 16}" text-anchor="middle" style="font-size: 12px; fill: var(--koda-ink)">${m.title.slice(0, 28)}</text></g>`;
+    }).join("");
+    main = `<div class="p-3">${edges ? "" : '<p class="pb-2 font-mono text-app-2xs text-dim">No links yet. Link memories from the detail pane, or let the agent link a problem to its solution.</p>'}<svg viewBox="0 0 ${W} ${H}" class="h-auto w-full rounded border border-hairline bg-canvas" role="img" aria-label="Memory graph">${edges}${nodes}</svg></div>`;
+  } else {
+    const sorted = list.slice().sort((a, b) => b.updated.localeCompare(a.updated));
+    const days = [];
+    for (const m of sorted) { const d = m.updated.slice(0, 10); if (days.length && days[days.length - 1][0] === d) days[days.length - 1][1].push(m); else days.push([d, [m]]); }
+    main = `<div class="flex flex-col gap-1 px-4 py-3">${days.map(([d, ms]) => `<div class="flex flex-col"><span class="py-2 font-mono text-app-2xs tracking-wider text-dim uppercase">${d}</span>${ms.map((m) => `<button type="button" data-id="${m.id}" class="grid w-full cursor-pointer grid-cols-[48px_12px_minmax(0,1fr)] items-start gap-2 rounded px-1 py-1.5 text-left transition hover:bg-hover"><span class="pt-0.5 font-mono text-app-2xs text-dim tabular-nums">${m.updated.slice(11, 16)}</span><span class="mt-1.5 size-2 rounded-full ${DOT[tone(m.kind)]}"></span><span class="flex min-w-0 flex-col gap-0.5"><span class="font-mono text-app-2xs text-accent-emerald-bright">${m.version > 1 ? "updated" : "stored"} · ${m.kind}</span><span class="truncate text-app-sm font-medium text-ink">${m.title}</span><span class="line-clamp-2 text-app-xs text-muted">${esc(m.summary)}</span></span></button>`).join("")}</div>`).join("")}</div>`;
+  }
+  $("body").innerHTML = `${bar}<div class="min-h-0 grow overflow-y-auto">${main}</div>`;
+}
+
+const pickRow = (value, label, chosen, needle) => {
+  const at = needle ? label.toLowerCase().indexOf(needle.toLowerCase()) : -1;
+  const text = at < 0 ? label : `${label.slice(0, at)}<mark class="bg-transparent font-bold text-accent-cyan-bright">${label.slice(at, at + needle.length)}</mark>${label.slice(at + needle.length)}`;
+  return `<li role="presentation"><button type="button" role="option" data-opt="${value}" aria-selected="${chosen}" class="flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-md px-2.5 text-left"><span class="${chosen ? "w-3.5 shrink-0 text-accent-cyan-bright" : "invisible w-3.5 shrink-0"}">${icon("size-3.5", CHECK)}</span><span class="min-w-0 truncate font-mono text-app-xs ${chosen ? "text-accent-cyan-bright" : "text-muted"}">${text}</span></button></li>`;
+};
+function dropdown(name, value, shownLabel, options, filter) {
+  const open = state.drop === name;
+  const needle = state.needle;
+  const listed = options.filter(([v, l]) => !needle || l.toLowerCase().includes(needle.toLowerCase()) || v.toLowerCase().includes(needle.toLowerCase()));
+  const panel = open ? `<div class="enter absolute z-40 flex max-h-80 w-max min-w-full max-w-[28rem] flex-col overflow-hidden rounded-lg border border-hairline bg-elevated elevated-shadow left-0 top-full mt-1.5">${filter ? `<label class="flex shrink-0 items-center gap-2 border-b border-hairline px-3 py-2">${icon("size-3.5 shrink-0 text-dim", GLYPH.search)}<span class="min-w-0 grow font-mono text-app-xs ${needle ? "text-ink" : "text-dim"}">${needle || "Filter"}${needle ? '<span class="caret"></span>' : ""}</span></label>` : ""}<ul class="flex flex-col overflow-y-auto p-1" role="listbox">${listed.map(([v, l]) => pickRow(v, l, v === value, needle)).join("")}</ul>${filter ? `<div class="flex shrink-0 justify-end border-t border-hairline px-3 py-1.5"><span class="flex items-center gap-1">${["↑↓", "↵", "esc"].map((k) => `<kbd class="rounded border border-b-2 border-hairline bg-subtle px-1 font-mono text-app-3xs text-dim">${k}</kbd>`).join("")}</span></div>` : ""}</div>` : "";
+  return `<div class="relative min-w-0"><button type="button" data-drop="${name}" aria-expanded="${open}" class="flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded border border-hairline bg-subtle px-2.5 py-1 text-left font-mono text-app-2xs outline-none transition hover:bg-hover focus:border-accent-cyan/60"><span class="grow truncate font-semibold text-ink">${shownLabel}</span>${icon("size-2.5 shrink-0 text-muted", ["m6 9 6 6 6-6"])}</button>${panel}</div>`;
+}
+
+function renderDocument() {
+  const m = byId(state.opened);
+  const others = memories.filter((o) => o.id !== m.id);
+  const link = state.link || { to: others[0].id, kind: "RELATED_TO" };
+  const tags = m.tags.length ? m.tags.join(", ") : "none";
+  const linkChip = `<div id="actions-row" role="${state.chip ? "dialog" : "group"}" aria-label="Memory actions" class="relative flex flex-wrap items-center gap-1.5">
+    <button type="button" id="link-chip" aria-expanded="${state.chip}" class="${state.chip ? "flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-accent-purple/50 bg-accent-purple/10 px-2.5 py-0.5 font-mono text-app-2xs" : "flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-hairline bg-subtle px-2.5 py-0.5 font-mono text-app-2xs transition hover:border-accent-purple/40"}"><span class="shrink-0 text-dim">+ link</span><span class="max-w-72 truncate text-ink/90">to another memory</span></button>
+    <div class="${state.chip ? "enter absolute top-full right-0 left-0 z-50 mt-1.5 flex max-w-[32rem] flex-col gap-2 rounded-lg border border-hairline bg-elevated p-3 elevated-shadow" : "hidden"}"><span class="text-app-sm font-medium text-ink">+ link</span><span class="text-app-2xs text-dim">Connect this memory to another one; the agent follows links when it recalls.</span>
+      ${dropdown("to", link.to, byId(link.to).title, others.map((o) => [o.id, o.title]), others.length > 8)}
+      ${dropdown("kind", link.kind, link.kind, RELATIONSHIPS.map((k) => [k, k]), true)}
+      <div class="flex gap-1.5">${action("Link", "primary")}</div></div></div>`;
+  const head = `<div class="flex shrink-0 flex-col gap-2 border-b border-hairline px-5 pt-3 pb-3">
+    <h2 class="text-app font-semibold text-ink">${m.title}</h2>
+    <span class="text-app-sm text-muted">${esc(m.summary)}</span>
+    <div class="flex flex-wrap items-center gap-1.5">${chip(m.kind, tone(m.kind))}${chip(m.id, "neutral")}${chip(`v${m.version}`, "neutral")}${chip(`importance ${m.importance.toFixed(1)}`, "neutral")}${chip(`tags ${tags}`, "neutral")}</div>
+    <span class="font-mono text-app-2xs text-dim">stored ${m.created} · updated ${m.updated}</span>
+    ${linkChip}</div>`;
+  let body;
+  if (state.panel === "history") {
+    body = `<div class="flex flex-col gap-2"><span class="font-mono text-app-3xs font-bold tracking-wider text-muted uppercase">History · ${m.history.length} versions</span>${m.history.map(([v, at, title, content]) => `<div class="flex flex-col gap-1 rounded border border-hairline bg-canvas p-2"><span class="font-mono text-app-2xs text-dim">${v} · ${at}</span><span class="text-app-xs font-medium text-ink">${title}</span><pre class="font-mono text-app-2xs whitespace-pre-wrap break-words text-muted">${esc(content)}</pre></div>`).join("")}</div>`;
+  } else {
+    const related = state.rels.flatMap(([a, b, k]) => (a === m.id ? [[b, k]] : b === m.id ? [[a, `← ${k}`]] : []));
+    body = `<pre class="rounded border border-hairline bg-canvas p-3 font-mono text-app-xs leading-relaxed whitespace-pre-wrap break-words text-ink">${esc(m.content)}</pre>
+    <div class="flex flex-col gap-1"><span class="font-mono text-app-3xs font-bold tracking-wider text-muted uppercase">Linked memories</span>${related.length ? related.map(([id, k]) => `<button type="button" data-rel="${id}" class="flex min-w-0 cursor-pointer items-center gap-2 text-left font-mono text-app-2xs text-ink/80 hover:text-ink"><span class="shrink-0 text-dim">${k}</span><span class="truncate">${byId(id).title}</span></button>`).join("") : '<span class="font-mono text-app-2xs text-dim">none yet</span>'}</div>`;
+  }
+  $("body").innerHTML = `${head}<div class="flex min-h-0 grow flex-col gap-3 overflow-y-auto px-5 py-3">${body}</div>`;
+}
+
+function renderActions() {
+  const close = action("Close", "secondary", GLYPH.close);
+  let html;
+  if (!state.opened) html = action("Reload", "secondary", RELOAD);
+  else if (state.panel === "history") html = action("Back to the memory", "secondary", GLYPH.chevronLeft);
+  else html = action("All memories", "secondary", GLYPH.chevronLeft) + action("Delete", "danger") + action("History", "secondary") + action("Edit", "primary");
+  $("actions").innerHTML = html + close;
+}
+
+function render() { renderTop(); if (state.opened) renderDocument(); else renderBrowse(); renderActions(); }
+const q = (s) => document.querySelector(s);
+const open = (id) => { state.opened = id; state.panel = "detail"; state.chip = false; state.link = null; state.drop = null; state.needle = ""; };
+const pick = (view) => { state.view = view; state.opened = null; state.panel = "detail"; };
+
+async function play(id) {
+  Object.assign(state, { view: "list", query: "", kind: null, opened: null, panel: "detail", rels: baseRels.slice(), chip: false, link: null, drop: null, needle: "" });
+  render(); await sleep(1400); alive(id);
+  await click(q('[data-id="3f9a2c71"]'), id);
+  open("3f9a2c71"); render(); await sleep(2000); alive(id);
+  await click(q('[data-act="History"]'), id);
+  state.panel = "history"; render(); await sleep(2600); alive(id);
+  await click(q('[data-act="Back to the memory"]'), id);
+  state.panel = "detail"; render(); await sleep(900); alive(id);
+  await click(q('[data-view="graph"]'), id);
+  pick("graph"); render(); await sleep(2000); alive(id);
+  await click(q('[data-id="a81c04de"] circle'), id);
+  open("a81c04de"); render(); await sleep(1600); alive(id);
+  await click($("link-chip"), id);
+  state.chip = true; render(); await sleep(1400); alive(id);
+  await click(q('[data-drop="to"]'), id);
+  state.drop = "to"; render(); await sleep(1100); alive(id);
+  await click(q('[data-opt="19bc5d07"]'), id);
+  state.link = { to: "19bc5d07", kind: "RELATED_TO" }; state.drop = null; render(); await sleep(700); alive(id);
+  await click(q('[data-drop="kind"]'), id);
+  state.drop = "kind"; render(); await sleep(700); alive(id);
+  for (const ch of "valid") { state.needle += ch; render(); await sleep(110); alive(id); }
+  await sleep(700); alive(id);
+  await click(q('[data-opt="VALIDATED_BY"]'), id);
+  state.link.kind = "VALIDATED_BY"; state.drop = null; state.needle = ""; render(); await sleep(1000); alive(id);
+  await click(q('[data-act="Link"]'), id);
+  state.chip = false; state.rels.push(["a81c04de", "19bc5d07", "VALIDATED_BY"]); render(); await sleep(2600); alive(id);
+  await click(q('[data-view="timeline"]'), id);
+  pick("timeline"); render(); await sleep(1800); alive(id);
+  await pointTo($("search"), id, 0.3);
+  for (const ch of "staging") { state.query += ch; render(); await sleep(90); alive(id); }
+  await sleep(1400); alive(id);
+  await click(q('[data-kind="problem"]'), id);
+  state.kind = "problem"; render(); await sleep(2600); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

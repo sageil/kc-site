@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Plan Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const UP = ["M12 20V5.2", "m5.6 11.6 6.4-6.4 6.4 6.4"];
+const CLIP = ["M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"];
+const DOWN = ["m6 9 6 6 6-6"];
+const TITLE = "Move config loading behind one interface";
+const PROMPT = "Move config loading behind one interface. Plan it first.";
+const STEM = "move-config-loading-behind-one-interface";
+const BRANCH = `koda/goal/${STEM}`;
+const kbd = (k) => `<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">${k}</kbd>`;
+const dockFoot = (running) => `<div class="mt-1.5 flex items-center justify-between gap-3 border-t border-hairline-soft px-1 pt-1.5 text-app-2xs text-dim"><button type="button" class="flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 font-mono transition border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright"><span class="size-1.5 shrink-0 rounded-full bg-accent-amber"></span><span class="truncate">Host · asks first</span>${icon("size-2.5 shrink-0", DOWN)}</button><div class="flex shrink-0 items-center gap-2 font-mono">${(running ? [["⌘↵", "Steer"], ["⇧⌘↵", "Queue"], ["Esc", "Cancel"]] : [["⌘↵", "Send"], ["Esc", "Cancel"]]).map(([k, a]) => `<span class="flex items-center gap-1">${kbd(k)}${a}</span>`).join("")}<button type="button" class="flex cursor-pointer items-center gap-1 rounded border border-elevated bg-hover px-2.5 py-1 text-app-xs font-medium text-ink transition hover:bg-elevated">Send${icon("size-3 text-dim", UP)}</button></div></div>`;
+const centre = (title, planning) => `
+  <div class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4"><div class="flex min-w-0 items-center gap-2"><span class="truncate font-sans text-app-xs text-muted">${title}</span></div><div class="flex shrink-0 items-center gap-3 font-mono text-app-xs text-muted"><span class="flex items-center gap-1">${icon("size-3.5 text-accent-cyan-bright", GLYPH.bolt)}Plan mode: <strong id="pm" class="text-ink">${planning ? "ON" : "OFF"}</strong></span><button type="button" class="flex cursor-default items-center gap-1.5 rounded px-1.5 py-0.5 transition hover:bg-hover"><strong id="tok" class="text-accent-cyan-bright">${planning ? "18.4k" : "0"} tok</strong></button></div></div>
+  <div id="goalbar"></div>
+  <div class="flex min-h-0 grow flex-col overflow-hidden"><div id="scroller" class="h-full overflow-y-auto p-4" style="scroll-behavior:smooth"><div id="stream" class="mx-auto flex w-full flex-col gap-3"></div></div></div>
+  <div class="shrink-0 bg-canvas px-3 pt-2 pb-3"><div class="mx-auto w-full max-w-3xl"><div class="flex w-full flex-col rounded-lg border border-hairline bg-panel/95 p-2 elevated-shadow backdrop-blur-xl"><div class="relative flex items-start gap-2 px-1">${icon("size-4 shrink-0 text-accent-indigo-bright", GLYPH.sparkle)}<div class="min-w-0 grow py-1 text-app-xs leading-relaxed text-dim" style="min-height:22px">Message the agent · / for commands · @ for agents · ⌘↵ to send</div><span class="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-dim transition hover:bg-hover hover:text-ink">${icon("size-4", CLIP)}</span>${kbd("⌘K")}</div><div id="dock-foot"></div></div></div></div>`;
+const setDock = (running) => ($("dock-foot").outerHTML = `<div id="dock-foot">${dockFoot(running)}</div>`);
+const add = (html) => { $("stream").insertAdjacentHTML("beforeend", html); $("scroller").scrollTop = $("scroller").scrollHeight; return $("stream").lastElementChild; };
+const ROW = "flex w-full min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left font-mono text-app-xs transition hover:bg-subtle";
+const step = (verb, subject, count, { running = false, shell = false } = {}) => `<div class="enter relative scroll-mt-3"><span class="absolute top-[9px] left-[-17px] size-2 rounded-full border ${running ? "border-transparent bg-accent-cyan" : "border-dim bg-panel"}"></span>${shell ? `<details class="group/step"><summary class="${ROW} cursor-pointer list-none select-none">` : `<div class="${ROW}">`}<span class="min-w-0 grow truncate"><span class="text-muted">${verb} </span><span class="text-ink/90">${subject}</span></span><span class="flex shrink-0 items-center gap-1.5 text-app-2xs text-dim"><span class="tabular-nums">${count}</span>${shell ? icon("size-3 shrink-0 transition-transform group-open/step:rotate-90", GLYPH.chevronRight) : ""}</span>${shell ? "</summary></details>" : "</div>"}</div>`;
+const rail = () => add(`<div class="enter relative flex flex-col pl-5"><span class="absolute top-2.5 bottom-2.5 left-[7px] w-px bg-hairline"></span></div>`);
+const md = (text) => `<div class="flex min-w-0 flex-col gap-2 wrap-anywhere"><p class="whitespace-pre-wrap">${text}</p></div>`;
+const userMessage = (text) => `<div class="enter flex items-start gap-2 rounded-lg border border-hairline bg-subtle/60 p-3 font-mono text-app-xs font-semibold leading-relaxed text-accent-cyan-bright shadow-sm">${icon("mt-0.5 size-4 shrink-0", UP)}<div class="flex min-w-0 flex-col gap-2"><div class="min-w-0 font-normal">${md(text)}</div></div></div>`;
+const reply = (text) => `<div class="enter flex flex-col gap-1 rounded-lg border border-hairline bg-panel p-3 font-mono text-app-xs leading-relaxed text-ink">${md(text)}</div>`;
+const fileCard = (title, path, meta, lines) => `<article class="enter flex w-full flex-col overflow-hidden rounded-lg border border-hairline bg-panel transition hover:border-dim/40 scroll-mt-3"><button type="button" class="cursor-pointer text-left transition hover:bg-hover flex items-center justify-between gap-3 p-2.5"><div class="flex min-w-0 flex-1 items-center gap-2.5 font-mono text-app-xs"><span class="shrink-0 font-bold select-none text-accent-cyan-bright">&gt;_</span><span class="flex min-w-0 items-baseline gap-1.5"><span class="shrink-0 text-ink/80">${title}</span><span class="truncate text-accent-cyan-bright">${path}</span></span></div><div class="flex shrink-0 items-center gap-1.5 font-mono text-app-2xs text-muted"><span class="shrink-0 tabular-nums">${meta}</span></div></button><div class="flex flex-col gap-1 border-t border-hairline bg-canvas p-3 font-mono text-code text-muted">${lines.map(([t, tone]) => `<div class="flex flex-wrap items-baseline gap-x-1"><span class="flex flex-wrap items-baseline gap-x-1"><span class="whitespace-pre-wrap break-all ${tone}">${t}</span></span></div>`).join("")}</div></article>`;
+const MARK = { new: "border-accent-emerald/35 bg-accent-emerald/12 text-accent-emerald-bright", changed: "border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright" };
+
+const first = [
+  ["s1", "Add a ConfigSource trait", "One interface for every place that loads settings.", ["src/config/source.rs"]],
+  ["s2", "Move file loading behind it", "FileSource reads config.toml; nothing else changes.", ["src/config/file.rs", "src/config/mod.rs"]],
+  ["s3", "Update the callers", "The 14 places that call load() take a ConfigSource.", ["src/http/server.rs", "src/db/pool.rs"]],
+];
+const second = [
+  first[0],
+  ["s2", "Move file and environment loading behind it", "FileSource reads config.toml; EnvSource keeps today's KODA_* overrides on top.", ["src/config/file.rs", "src/config/env.rs"], "changed"],
+  first[2],
+  ["s4", "Test the override order", "A test pins that the environment beats the file.", ["tests/config.rs"], "new"],
+];
+
+function plan(steps, { round, note = "", canRevise = false } = {}) {
+  return `<div id="plan" class="enter flex flex-col gap-3 rounded-lg border border-accent-indigo/30 bg-panel p-3.5" role="group" aria-label="Plan proposed">
+    <div class="flex items-center gap-2"><span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase border-accent-indigo/35 bg-accent-indigo/12 text-accent-indigo-bright">Plan proposed</span><span class="font-mono text-app-2xs text-dim">Agent paused</span><span class="ml-auto font-mono text-app-2xs text-dim">${STEM}.json</span></div>
+    ${round ? `<p class="text-app-xs text-accent-indigo-bright">This round: ${round}</p>` : ""}
+    <div class="flex flex-col gap-2"><p class="text-app-sm font-medium text-ink">${TITLE}</p>${md("Every loader goes through a single trait, so tests and containers can supply their own settings.")}</div>
+    <ol class="flex flex-col gap-2">${steps.map(([id, what, why, files, mark], i) => `<li class="flex flex-col gap-1 rounded-lg border border-hairline bg-canvas px-3 py-2"><div class="flex items-center gap-2"><span class="flex size-5 shrink-0 items-center justify-center rounded border border-hairline font-mono text-app-2xs text-dim">${i + 1}</span><div class="min-w-0 grow text-app-sm text-ink">${md(what)}</div>${mark ? `<span class="inline-flex shrink-0 items-center rounded border px-1.5 font-mono text-app-2xs uppercase ${MARK[mark]}">${mark}</span>` : ""}<code class="ml-auto shrink-0 whitespace-nowrap font-mono text-app-2xs text-dim">${id}</code></div>${md(why)}<p class="flex flex-wrap items-center gap-x-1.5 font-mono text-app-2xs text-dim">${files.map((f) => `<code class="rounded bg-panel px-1 py-0.5 text-accent-amber-bright">${f}</code>`).join("")}</p></li>`).join("")}</ol>
+    <div class="flex flex-col gap-1"><span class="font-mono text-app-2xs tracking-[0.06em] uppercase text-dim">Verification</span>${md("cargo test passes, and the server starts with and without config.toml.")}</div>
+    <p class="text-app-2xs text-dim">Nothing has been written. Accepting saves the plan to the project and starts the work.</p>
+    <div id="note" class="rounded-lg border border-hairline bg-canvas px-3 py-2 text-app-xs ${note ? "text-ink" : "text-dim"}">${note || "What to change — required to ask for a revision…"}</div>
+    <div class="flex items-center gap-2 border-t border-hairline-soft pt-3">
+      <button id="accept" type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-emerald/40 bg-accent-emerald/10 px-2.5 py-1 text-app-xs font-medium text-accent-emerald-bright transition hover:bg-accent-emerald/20">${icon("size-3.5", GLYPH.check)}Accept</button>
+      <label class="flex cursor-pointer items-center gap-1.5 text-app-xs text-muted" title="Merge the finished work into the project; stops and waits for you on any conflict"><input type="checkbox" class="koda-check">Merge when done</label>
+      <label class="flex items-center gap-1 text-app-xs text-muted" title="The most the goal may spend; leave it empty for no limit">Budget $<span class="w-20 rounded border border-hairline bg-canvas px-2 py-0.5 text-right font-mono text-app-xs text-dim">no limit</span></label>
+      <button id="revise" type="button" ${canRevise ? "" : "disabled"} class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-indigo/40 bg-accent-indigo/12 px-2.5 py-1 text-app-xs font-medium text-accent-indigo-bright transition hover:bg-accent-indigo/20 disabled:cursor-not-allowed disabled:opacity-60">${icon("size-3.5", UP)}Ask for a revision</button>
+      <button type="button" class="ml-auto flex cursor-pointer items-center gap-1.5 rounded border border-accent-rose/40 bg-accent-rose/10 px-2.5 py-1 text-app-xs font-medium text-accent-rose transition hover:bg-accent-rose/20">${icon("size-3.5", GLYPH.close)}Reject</button>
+    </div></div>`;
+}
+const TONE = { cyan: ["border-accent-cyan/35 bg-accent-cyan/12 text-accent-cyan-bright", "text-accent-cyan-bright"], emerald: ["border-accent-emerald/35 bg-accent-emerald/12 text-accent-emerald-bright", "text-accent-emerald-bright"] };
+const ACTION = { primary: "border-accent-cyan/45 bg-accent-cyan/10 font-medium text-accent-cyan-bright hover:border-accent-cyan hover:bg-accent-cyan/18", secondary: "border-hairline bg-subtle text-ink/80 hover:bg-hover hover:text-ink", danger: "border-accent-rose/40 bg-accent-rose/10 text-accent-rose hover:bg-accent-rose/20" };
+const button = (id, label, kind, title = "") => `<button id="${id}" type="button" title="${title}" class="flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${ACTION[kind]}">${label}</button>`;
+function goalBar(tone, said, spent, actions = "") {
+  $("goalbar").innerHTML = `<div class="enter flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline bg-panel px-3 py-1.5 font-mono text-app-2xs" aria-label="Goal"><span class="shrink-0 rounded border px-1.5 uppercase ${TONE[tone][0]}">Goal</span><span class="font-medium ${TONE[tone][1]}">${said}</span><span class="text-dim">·</span><span class="truncate text-muted" title="${BRANCH}">${BRANCH}</span><span class="text-dim">·</span><span class="text-muted">${spent}</span><span class="grow"></span><div class="flex flex-wrap items-center gap-2 font-mono text-app-2xs">${actions}</div></div>`;
+}
+function setPlanSwitch(on, working) {
+  const [build, planBtn] = document.querySelectorAll('[role="radiogroup"] button');
+  const off = "cursor-pointer rounded px-2.5 py-0.5 text-dim transition hover:text-muted disabled:cursor-not-allowed disabled:opacity-60";
+  build.className = on ? off : "cursor-pointer rounded bg-elevated px-2.5 py-0.5 text-ink disabled:cursor-not-allowed";
+  planBtn.className = on ? "cursor-pointer rounded bg-accent-indigo/15 px-2.5 py-0.5 text-accent-indigo-bright disabled:cursor-not-allowed" : off;
+  build.disabled = planBtn.disabled = !!working;
+}
+const PHASE = {
+  working: ["koda-pulse-glow border-accent-cyan/50 bg-accent-cyan/10 text-accent-cyan-bright", "Working"],
+  approval: ["border-hairline bg-subtle text-accent-amber-bright", "Needs approval", "bg-accent-amber"],
+  done: ["border-hairline bg-subtle text-accent-emerald-bright", "Finished", "bg-accent-emerald"],
+};
+function setStatus(kind) {
+  const s = $("status"), [cls, label, dot] = PHASE[kind];
+  s.className = "flex items-center gap-1.5 rounded border px-2.5 py-1 font-mono text-app-2xs font-medium " + cls;
+  s.setAttribute("aria-label", `Run status: ${label}`);
+  s.innerHTML = kind === "working" ? `<span class="koda-star relative inline-flex shrink-0 items-center justify-center size-3.5 text-accent-indigo-bright"><svg class="animate-sparkle-pulse block size-full" viewBox="0 0 24 24" fill="currentColor"><path d="${GLYPH.sparkle[0]}"/><path d="${GLYPH.sparkle[1]}"/></svg></span><span>${label}</span>` : `<span class="inline-block size-1.5 shrink-0 rounded-full ${dot}"></span><span>${label}</span>`;
+  const live = kind !== "done", stop = $("stop");
+  stop.disabled = !live;
+  stop.className = live ? "flex cursor-pointer items-center gap-1 rounded border border-hairline bg-subtle px-2.5 py-1 text-app-xs text-ink/80 transition hover:bg-hover hover:text-ink" : "flex cursor-not-allowed items-center gap-1 rounded border border-hairline bg-subtle/50 px-2.5 py-1 text-app-xs text-dim opacity-60";
+  setPlanSwitch($("pm").textContent === "ON", kind === "working");
+}
+function autonomousChip(group = "running") {
+  $("glance")?.remove();
+  if (!group) return;
+  const [label, text, dot] = group === "running" ? ["Running", "text-accent-emerald-bright", "bg-accent-emerald animate-pulse"] : ["Attention required", "text-accent-rose", "bg-accent-rose"];
+  $("status").insertAdjacentHTML("beforebegin", `<div id="glance" class="relative"><button type="button" class="flex cursor-pointer items-center gap-2 rounded border border-hairline bg-subtle px-2.5 py-1 font-mono text-app-2xs text-ink/80 transition hover:bg-hover" title="Autonomous tasks: 1 ${label.toLowerCase()}"><span class="text-muted">Autonomous</span><span class="h-3 w-px bg-hairline"></span><span class="flex items-center gap-1 font-bold ${text}" title="${label}"><span class="inline-block size-1.5 shrink-0 rounded-full ${dot}"></span>1</span></button></div>`);
+}
+const doing = (title) => { const el = $("sb-doing"); if (el) el.textContent = `acme-api: ${title}`; };
+
+async function play(id) {
+  mountShell(centre(PROMPT, true));
+  doing(PROMPT);
+  setDock(true);
+  setStatus("working");
+  add(userMessage(PROMPT));
+  await sleep(900); alive(id);
+  const tl = rail();
+  for (const [v, s, c] of [["Explored the code:", "load_config", "14 lines"], ["Read", "src/config/mod.rs", "120 lines"], ["Searched", "KODA_", "9 lines"]]) {
+    tl.insertAdjacentHTML("beforeend", step(v, s, c)); await sleep(650); alive(id);
+  }
+  tl.insertAdjacentHTML("beforeend", step("Proposed a plan:", TITLE, "no result yet", { running: true }));
+  setStatus("approval");
+  add(plan(first));
+  await sleep(2600); alive(id);
+  await pointTo($("note"), id, 0.2);
+  let typed = "";
+  for (const ch of "Keep today's KODA_* environment overrides, and test the order.") {
+    typed += ch; $("plan").outerHTML = plan(first, { note: typed, canRevise: true }); await sleep(26); alive(id);
+  }
+  await sleep(400); alive(id);
+  await click($("revise"), id);
+  setStatus("working");
+  $("plan").remove();
+  tl.lastElementChild.outerHTML = step("Proposed a plan:", TITLE, "1 line");
+  await sleep(600); alive(id);
+  tl.insertAdjacentHTML("beforeend", step("Searched", "KODA_ src/config", "4 lines")); $("scroller").scrollTop = $("scroller").scrollHeight;
+  await sleep(900); alive(id);
+  tl.insertAdjacentHTML("beforeend", step("Proposed a plan:", TITLE, "no result yet", { running: true }));
+  setStatus("approval");
+  add(plan(second, { round: "1 step added, 1 step changed" }));
+  $("scroller").scrollTop = $("scroller").scrollHeight;
+  await sleep(3400); alive(id);
+  await click($("accept"), id);
+  $("plan").remove();
+  tl.lastElementChild.outerHTML = step("Proposed a plan:", TITLE, "1 line");
+  setStatus("working");
+  autonomousChip();
+  await sleep(700); alive(id);
+  add(reply(`The plan is running as a goal in its own session, on branch <code class="rounded bg-subtle px-1 font-mono text-accent-cyan-bright">${BRANCH}</code>.`));
+  setStatus("done");
+  setDock(false);
+  await sleep(1400); alive(id);
+  await pointTo(q("#glance button"), id);
+  await sleep(500); alive(id);
+
+  mountShell(centre(TITLE, false));
+  doing(TITLE);
+  setDock(true);
+  setStatus("working");
+  autonomousChip();
+  goalBar("cyan", "Working in its own copy", "0 tokens", button("pause", "Pause", "secondary"));
+  add(userMessage(`Carry out the accepted plan below as a goal. You are in a separate git checkout of the project on branch <code class="rounded bg-subtle px-1 font-mono text-accent-cyan-bright">${BRANCH}</code>, separate from the user's own working copy, and nobody is waiting on each step: keep going until the plan is done.`));
+  const work = [
+    ["step", "Updated the plan:", "s1 in progress", "1 line"],
+    ["card", "Write", "src/config/source.rs", "1 line", [["wrote src/config/source.rs: 38 lines, 1104 bytes", "text-muted"]]],
+    ["card", "Write", "src/config/env.rs", "1 line", [["wrote src/config/env.rs: 52 lines, 1530 bytes", "text-muted"]]],
+    ["card", "Edit", "src/config/file.rs", "+21 −9", [["- pub fn load() -> Config {", "text-accent-rose"], ["+ impl ConfigSource for FileSource {", "text-accent-emerald-bright"], ["+     fn load(&self) -> Result<Config> {", "text-accent-emerald-bright"]]],
+    ["step", "Updated the plan:", "s1 done, s2 done, s3 in progress", "1 line"],
+    ["card", "Write", "tests/config.rs", "1 line", [["wrote tests/config.rs: 44 lines, 1286 bytes", "text-muted"]]],
+    ["shell", "Ran", "cargo test", "38 lines"],
+    ["shell", "Ran", "git commit -am 'Load config through ConfigSource'", "3 lines"],
+    ["step", "Marked the goal complete", "", "1 line"],
+  ];
+  let tokens = 0, timeline = null;
+  for (const [kind, verb, sub, meta, lines] of work) {
+    if (kind === "card") { timeline = null; add(fileCard(verb, sub, meta, lines)); }
+    else { if (!timeline) timeline = rail(); timeline.insertAdjacentHTML("beforeend", step(verb, sub, meta, { shell: kind === "shell" })); $("scroller").scrollTop = $("scroller").scrollHeight; }
+    tokens += 6100 + sub.length * 211;
+    $("tok").textContent = `${(tokens / 1000).toFixed(1)}k tok`;
+    goalBar("cyan", "Working in its own copy", `${tokens} tokens`, button("pause", "Pause", "secondary"));
+    await sleep(700); alive(id);
+  }
+  add(reply("All four steps are done and committed: config now loads through ConfigSource, and tests/config.rs pins that the environment beats the file."));
+  setStatus("done");
+  setDock(false);
+  autonomousChip("attention");
+  goalBar("emerald", "Done, waiting for you to merge or discard", `${tokens} tokens`, button("merge", "Merge", "primary", "Add the goal's changes to the project as one commit") + button("discard", "Discard", "danger", "Delete the goal's copy and its work"));
+  await sleep(1800); alive(id);
+  await click($("merge"), id);
+  $("merge").textContent = "Working…"; $("merge").disabled = true; $("discard").disabled = true;
+  await sleep(1100); alive(id);
+  autonomousChip(null);
+  goalBar("emerald", "Merged", `${tokens} tokens`);
+  await sleep(4200); alive(id);
+}
+const q = (s) => document.querySelector(s);
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

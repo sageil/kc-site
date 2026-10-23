@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Automation Editor Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="shell.js"></script>
+<script src="automation-ui.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const FILE = "~/dev/acme-api/.koda/automations/pharma-cluster-health.json";
+const blank = () => ({
+  pane: "empty", name: "", desc: "", every: "", model: "", chip: null, modelOpen: false, otherwiseOpen: false,
+  inputs: [{ kind: "git diff", id: "diff", value: "HEAD~1" }],
+  state: "Recent changes:\n{diff}",
+  q: { id: "worth_a_look", text: "Do these changes need a closer review?", yes: "They change behaviour in a way that could break something.", no: "They are routine." },
+  rule: { op: "is above", value: "0.8", text: "Review the changes since HEAD~1 and list what could break." },
+  otherwise: { kind: "record a note", text: "Nothing to review." },
+  tried: null, trying: false, file: "", unsaved: false, runsTab: false, runs: [], list: [],
+});
+let s = blank();
+const goal = AU.pharma();
+
+function render() {
+  const keep = $("body") ? $("body").scrollTop : 0;
+  mountShell(AU.screen(s));
+  if ($("body")) $("body").scrollTop = keep;
+}
+const set = (change) => { change(s); s.unsaved = s.pane === "doc"; render(); };
+const offsetIn = (b, el) => (el.getBoundingClientRect().top - b.getBoundingClientRect().top) / ($("stage").getBoundingClientRect().width / 1280) + b.scrollTop;
+const scrollTo = async (sel, id) => { const b = $("body"); b.scrollTop = offsetIn(b, document.querySelector(sel)) - 16; await sleep(500); alive(id); };
+async function type(apply, text, id, speed = 22) { for (let i = 1; i <= text.length; i++) { set((d) => apply(d, text.slice(0, i))); await sleep(speed); alive(id); } }
+
+async function play(id) {
+  s = blank(); render(); await sleep(1000); alive(id);
+  await click($("create"), id);
+  set((d) => { d.pane = "doc"; }); s.unsaved = false; render(); await sleep(500); alive(id);
+  await pointTo($("f-name"), id, 0.1);
+  await type((d, t) => { d.name = t; }, goal.name, id);
+  await type((d, t) => { d.desc = t; }, goal.desc, id, 12);
+
+  await click($("chip-schedule"), id);
+  set((d) => { d.chip = "schedule"; }); await sleep(500); alive(id);
+  await click(document.querySelector('[data-seg="Every"]'), id);
+  set((d) => { d.every = "1h"; }); await sleep(300); alive(id);
+  set((d) => { d.every = "1"; }); await sleep(120); alive(id);
+  await type((d, t) => { d.every = t; }, "15m", id, 90);
+  await sleep(400); alive(id);
+  await click($("chip-decides"), id);
+  set((d) => { d.chip = "decides"; }); await sleep(400); alive(id);
+  await click($("model-drop"), id);
+  set((d) => { d.modelOpen = true; }); await sleep(500); alive(id);
+  await click(document.querySelector('[data-option="nimble-v3:9b"]'), id);
+  set((d) => { d.model = goal.model; d.modelOpen = false; }); await sleep(500); alive(id);
+  set((d) => { d.chip = null; }); await sleep(500); alive(id);
+
+  await scrollTo("#s-read", id);
+  set((d) => { d.inputs = [{ kind: "command", id: "nodes", value: "" }]; }); await sleep(300); alive(id);
+  await type((d, t) => { d.inputs[0].value = t; }, goal.inputs[0].value, id, 18);
+  await click($("add-input"), id);
+  set((d) => { d.inputs.push({ kind: "command", id: "pods", value: "" }); }); await sleep(250); alive(id);
+  await type((d, t) => { d.inputs[1].value = t; }, goal.inputs[1].value, id, 12);
+  set((d) => { d.state = ""; }); await sleep(200); alive(id);
+  await type((d, t) => { d.state = t; }, goal.state, id, 10);
+
+  await scrollTo("#s-ask", id);
+  set((d) => { d.q = { id: "", text: "", yes: "", no: "" }; }); await sleep(200); alive(id);
+  await type((d, t) => { d.q.id = t; }, goal.q.id, id, 40);
+  await type((d, t) => { d.q.text = t; }, goal.q.text, id, 16);
+  set((d) => { d.q.yes = goal.q.yes; }); await sleep(250); alive(id);
+  set((d) => { d.q.no = goal.q.no; }); await sleep(500); alive(id);
+
+  await scrollTo("#s-decide", id);
+  set((d) => { d.rule = { op: "is below", value: "0.5", text: "" }; }); await sleep(400); alive(id);
+  await type((d, t) => { d.rule.text = t; }, goal.rule.text, id, 9);
+  await click($("otherwise-drop"), id);
+  set((d) => { d.otherwiseOpen = true; }); await sleep(500); alive(id);
+  await click(document.querySelector('[data-option="do nothing"]'), id);
+  set((d) => { d.otherwise = { kind: "do nothing", text: "" }; d.otherwiseOpen = false; }); await sleep(800); alive(id);
+
+  await click($("try"), id);
+  s.trying = true; render(); await sleep(1300); alive(id);
+  s.trying = false; s.tried = { said: "yes 98%", rule: null, bytes: "1,184" }; render(); await sleep(400); alive(id);
+  await scrollTo("#s-state", id); await pointTo($("tried-bytes"), id); await sleep(1300); alive(id);
+  await scrollTo("#s-ask", id); await pointTo($("tried-said"), id); await sleep(1600); alive(id);
+  await scrollTo("#s-decide", id); await pointTo($("tried-otherwise"), id); await sleep(2200); alive(id);
+  await click($("save"), id);
+  s.file = FILE; s.unsaved = false; render(); await sleep(3400); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

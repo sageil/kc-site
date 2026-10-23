@@ -1,0 +1,24 @@
+# KodaCode
+
+> KodaCode is a desktop AI coding agent for macOS, Windows and Linux. A lead agent delegates work to agents you define, automations check anything an agent can read on a schedule, and goals carry an agreed plan to the end in their own copy of the project. It works with the models you choose: Anthropic, ChatGPT, OpenAI, Google, DeepSeek, Qwen, OpenRouter, Ollama or your own endpoint. API keys are kept in the system keychain.
+
+## Features
+
+- [Crew](https://kodacode.dev/crew/): a lead agent and specialists with their own instructions, tools and model
+- [Automations](https://kodacode.dev/automations/): scheduled checks decided by small decision models, in one project, several or none
+- [Goals](https://kodacode.dev/goals/): agreed plans that run in their own copy of the project and merge as one commit
+- [Code graph](https://kodacode.dev/graph/): who calls what across the project
+- [Memory](https://kodacode.dev/memory/): problems, fixes and decisions linked by why
+- [Editor](https://kodacode.dev/editor/): ask about a selection and review agent edits in place
+- [Code review](https://kodacode.dev/review/): security, quality, best-practice and project-rules reviewers, dependency and secret scanners, and a pass that challenges every finding
+- [Control](https://kodacode.dev/control/): approve edits and commands, or let them apply directly
+- [Isolation](https://kodacode.dev/isolation/): run a project in Docker or Podman, with a terminal inside the container
+- [Models](https://kodacode.dev/models/): the providers it works with, how each signs in, and a different model per agent
+- [MCP servers](https://kodacode.dev/mcp/): tools from MCP servers over stdio or HTTP, with OAuth sign-in and per-tool approvals
+- [Skills & web](https://kodacode.dev/skills/): SKILL.md skills, web search with the provider's own search or Exa, and web fetch
+
+## About
+
+- [Pricing](https://kodacode.dev/pricing/): $15 a month or $144 a year after a 14-day trial; bring your own models
+- [Questions](https://kodacode.dev/faq/): what it is, models, keys, approvals, containers, review and MCP
+- [Download](https://kodacode.dev/download/): coming soon for macOS, Windows and Linux
