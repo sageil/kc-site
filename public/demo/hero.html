@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Workspace Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const ASK = "The webhook retry test fails. Find out why and fix it.";
+const FILE = "src/webhooks/retry.rs";
+const OLDER = [{ title: "Add webhook retries", ago: "1d ago", turns: 8 }, { title: "Rotate the webhook secret", ago: "3d ago", turns: 3 }];
+const BEFORE = [
+  { title: "Staging runs behind an nginx proxy", kind: "technology", updated: "2026-09-26" },
+  { title: "502 from the staging proxy after 5 s", kind: "error", updated: "2026-09-26" },
+];
+const q = (s) => document.querySelector(s);
+const GROUP = '<div class="flex flex-col py-1">';
+function add(html) {
+  const last = $("log").lastElementChild;
+  if (html.startsWith(GROUP) && last?.dataset.calls) last.insertAdjacentHTML("beforeend", html.slice(GROUP.length, -6));
+  else $("log").insertAdjacentHTML("beforeend", html.startsWith(GROUP) ? html.replace(GROUP, '<div data-calls="1" class="flex flex-col py-1">') : html);
+  $("scroll").scrollTop = $("scroll").scrollHeight;
+}
+const swapLast = (html) => { const group = $("log").lastElementChild; group.lastElementChild.outerHTML = html; group.lastElementChild.classList.remove("enter"); };
+const setDock = (o) => { $("dock-slot").innerHTML = dock(o); };
+const setStrip = (o) => { $("strip-slot").innerHTML = o ? sessionStrip(o) : ""; };
+
+// The editor's file view with a change waiting for review (centre.rs TabStrip, editor/chrome.rs, editor/body.rs, editor/rows.rs, editor/edit_card.rs).
+const SYN = { kw: "var(--koda-syntax-keyword)", ty: "var(--koda-syntax-type)", fn: "var(--koda-syntax-function)", num: "var(--koda-syntax-number)", txt: "var(--koda-syntax-variable)" };
+const paint = (text) => esc(text).replace(/\b(pub|fn|if|return|match|use|let|const|u32|bool|false|true)\b|\b([A-Z]\w*)\b|\b(\d+)\b|\b([a-z_]\w*)(?=\()/g, (m, kw, ty, num, fn) =>
+  `<span style="color: ${kw ? SYN.kw : ty ? SYN.ty : num ? SYN.num : SYN.fn};">${m}</span>`);
+const SOURCE = [
+  [12, " ", "use reqwest::StatusCode;"],
+  [13, " ", ""],
+  [14, " ", "pub const MAX_ATTEMPTS: u32 = 8;"],
+  [15, " ", ""],
+  [16, " ", "pub fn should_retry(status: StatusCode, attempt: u32) -> bool {"],
+  [17, " ", "    if attempt >= MAX_ATTEMPTS {"],
+  [18, " ", "        return false;"],
+  [19, " ", "    }"],
+  [20, " ", "    match status.as_u16() {"],
+  [21, "-", "        400 | 401 => false,"],
+  ["+", "+", "        400 | 401 | 410 => false,"],
+  [22, " ", "        _ => !status.is_success(),"],
+  [23, " ", "    }"],
+  [24, " ", "}"],
+];
+const tabArrow = (left) => `<button type="button" class="flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright" title="Scroll tabs ${left ? "left" : "right"}" aria-label="Scroll tabs ${left ? "left" : "right"}">${icon("size-3.5", left ? GLYPH.chevronLeft : GLYPH.chevronRight)}</button>`;
+const tabStrip = (path, waiting) => `<header class="flex h-(--koda-tab-h) shrink-0 items-center gap-1.5 border-b border-hairline bg-well px-2">${tabArrow(true)}<div id="koda-open-tabs" class="koda-no-scrollbar flex h-full min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"><div class="flex h-full shrink-0 items-center gap-1 border-t-2 border-t-transparent px-2 font-mono text-app-2xs text-muted transition hover:bg-subtle"><button type="button" aria-label="Open tab ${path}" class="flex cursor-pointer items-center gap-1.5 truncate">${icon("size-3 shrink-0 text-dim", GLYPH.code)}<span class="truncate">${path.split("/").pop()}</span></button>${waiting ? `<span class="flex size-4 shrink-0 items-center justify-center" title="A change to this file is waiting for your decision. Accept or reject it first." aria-label="${path} has a change waiting for review"><span class="size-1.5 rounded-full bg-accent-amber"></span></span>` : `<button type="button" aria-label="Close tab ${path}" title="Close tab" class="flex size-4 shrink-0 cursor-pointer items-center justify-center rounded text-dim transition hover:bg-hover hover:text-ink">${icon("size-3", GLYPH.close)}</button>`}</div></div>${tabArrow(false)}</header>`;
+function fileView(path, source, edit) {
+  const dir = path.split("/").slice(0, -1).join("/"), name = path.split("/").pop();
+  const rows = source.map(([n, kind, text]) => `<div class="flex w-max min-w-full gap-4 border-l-2 ${kind === "+" ? "border-diff-add bg-diff-add/12" : kind === "-" ? "border-diff-remove bg-diff-remove/12" : "border-transparent"}" style="height: 20px; line-height: 20px"><span class="w-6 shrink-0 text-right text-dim select-none">${n}</span><span class="whitespace-pre text-ink">${kind === "+" ? esc(text) : paint(text)}</span></div>`).join("");
+  const kbd = (k) => `<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">${k}</kbd>`;
+  const card = edit ? `<section class="shrink-0 border-t border-hairline bg-panel" tabindex="-1" aria-label="Proposed change"><header class="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2"><div class="flex min-w-0 items-center gap-2">${icon("size-[15px] shrink-0 text-accent-indigo-bright", GLYPH.diff)}<span class="truncate text-app-sm font-medium text-ink">${esc(edit.summary)}</span></div><span class="shrink-0 font-mono text-app-2xs tabular-nums"><span class="text-accent-emerald-bright">+${edit.added}</span><span class="text-dim"> </span><span class="text-accent-rose">-${edit.removed}</span></span></header><footer class="flex flex-wrap items-center gap-2 border-t border-hairline px-4 py-2"><button type="button" id="accept" aria-label="Accept change" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-emerald/40 bg-accent-emerald/10 px-2.5 py-1 text-app-xs font-medium text-accent-emerald-bright transition hover:bg-accent-emerald/20">${icon("size-3.5", GLYPH.check)}Accept${kbd("⌘↵")}</button><button type="button" aria-label="Reject change" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-rose/40 bg-accent-rose/10 px-2.5 py-1 text-app-xs font-medium text-accent-rose transition hover:bg-accent-rose/20">${icon("size-3.5", GLYPH.close)}Reject${kbd("⌘⌫")}</button><input type="text" tabindex="-1" aria-label="Note for the agent" placeholder="Optional note sent with a rejection" class="min-w-0 grow rounded border border-hairline bg-canvas px-2 py-1 text-app-xs text-ink outline-none placeholder:text-dim"></footer></section>` : "";
+  return `<main class="flex min-h-0 grow flex-col overflow-hidden bg-canvas"><div class="flex h-6 shrink-0 select-none items-center justify-between gap-3 border-b border-hairline-soft bg-canvas/60 px-4 font-mono text-app-2xs text-dim"><div class="flex min-w-0 items-center gap-1.5">${dir ? `<span class="truncate hover:text-muted">${dir}</span>${icon("size-3 shrink-0 -rotate-90 text-dim", GLYPH.chevronDown)}` : ""}<span class="flex min-w-0 items-center gap-1 font-medium text-ink">${icon("size-3 shrink-0 text-accent-indigo-bright", GLYPH.code)}<span class="truncate">${name}</span></span></div><div class="flex shrink-0 items-center gap-2"><span>Rust</span><span>UTF-8</span></div></div><div class="relative min-h-0 grow overflow-auto overflow-anchor-none px-4 py-2 font-mono text-code-editor" aria-label="File contents">${edit ? `<div class="absolute top-3 right-4 z-10 flex items-center gap-1.5 rounded-full bg-accent-indigo/15 px-3 py-1.5 text-app-sm text-accent-indigo-bright">${icon("size-3.5", GLYPH.sparkle)}Agent is editing ${edit.span}…</div>` : ""}${rows}</div>${card}<div class="flex h-6 shrink-0 select-none items-center justify-between gap-3 border-t border-hairline bg-well px-3 font-mono text-app-2xs text-dim"><div class="flex min-w-0 items-center gap-2"><span class="truncate">${name}</span><span class="text-hairline">·</span><span>Rust</span></div><div class="flex shrink-0 items-center gap-3"><button type="button" title="Wrap long lines (Alt+Z)" class="cursor-pointer rounded px-1 transition hover:bg-hover hover:text-ink">Wrap: off</button><span>Spaces: 2</span><span>LF</span></div></div></main>`;
+}
+function showFile(html) {
+  $("tabs-slot").innerHTML = html ? tabStrip(FILE, true) : tabStrip(FILE, false);
+  $("file-slot").innerHTML = html || "";
+  $("file-slot").style.display = html ? "" : "none";
+  $("strip-slot").style.display = html ? "none" : "";
+  $("scroll").parentElement.style.display = html ? "none" : "";
+}
+const EDIT = { summary: `edit ${FILE} (replacing 1 lines)`, added: 1, removed: 1, span: "line 21" };
+const FIX = ["@@ -21 +21 @@", "-        400 | 401 => false,", "+        400 | 401 | 410 => false,"];
+const REPLY = "`should_retry` treated a 410 Gone reply like a 503, so deliveries to a deleted endpoint were retried until `MAX_ATTEMPTS`. A 410 now stops the retries at once.\n\n- `cargo test webhooks` passes (6 of 6).\n- I stored the problem and the fix in memory, linked with SOLVES.";
+
+async function play(id) {
+  const p = $("pointer"); p.style.left = "1180px"; p.style.top = "820px";
+  mountShell(`<div id="tabs-slot"></div><div id="file-slot" class="flex min-h-0 grow flex-col overflow-hidden" style="display:none"></div>${sessionColumn()}`, { sessions: OLDER, more: 0, memory: { total: 2, session: [], recent: BEFORE } });
+  $("log").innerHTML = '<p class="text-app-sm text-dim" role="status" aria-label="No session has run yet.">No session has run yet.</p>';
+
+  chapter("Ask for a fix");
+  await sleep(900); alive(id);
+  await click($("prompt"), id);
+  for (let i = 1; i <= ASK.length; i++) { setDock({ text: ASK.slice(0, i), caret: true }); await sleep(28); alive(id); }
+  await sleep(400); alive(id);
+  await click($("send"), id);
+  const S = { title: ASK, ago: "just now", turns: 1, phase: "Working", selected: true };
+  $("log").innerHTML = "";
+  add(said(ASK));
+  setStrip({ title: ASK, turn: 0, session: 0 });
+  setDock({ title: ASK, working: true, activity: "Thinking", elapsed: "1s" });
+  shell({ phase: "Working", doing: ASK, sessions: [S, ...OLDER], context: { used: 8400 } });
+  await sleep(900); alive(id);
+
+  chapter("Run the failing test");
+  setDock({ title: ASK, working: true, activity: "$ cargo test webhooks", elapsed: "2s" });
+  add(calls([call({ kind: "shell", detail: "cargo test webhooks", status: "running" })]));
+  shell({ toolCalls: 1 });
+  await sleep(2000); alive(id);
+  swapLast(call({ kind: "shell", detail: "cargo test webhooks", took: "2.3s", status: "exit 101", open: true, body: output(["running 6 tests", "test retries_on_503 ... ok", "test gives_up_on_gone ... FAILED", "test result: FAILED. 5 passed; 1 failed"]) }));
+  await sleep(1800); alive(id);
+
+  chapter("Find the code");
+  setDock({ title: ASK, working: true, activity: "Graph should_retry", elapsed: "6s" });
+  add(calls([call({ kind: "graph", detail: "should_retry", took: "0.2s" })]));
+  shell({ toolCalls: 2, context: { used: 11800 } });
+  await sleep(800); alive(id);
+  add(calls([call({ kind: "read", detail: FILE, took: "0.1s" })]));
+  shell({ toolCalls: 3, context: { used: 14900 } });
+  await sleep(900); alive(id);
+
+  chapter("Approve the edit");
+  add(calls([call({ kind: "edit", verb: "Edit", detail: FILE, status: "approval", body: editBody(FILE, FIX) })]));
+  setDock({ title: ASK, working: true, activity: "Waiting for your approval", elapsed: "11s" });
+  shell({ toolCalls: 4, phase: "Needs approval", sessions: [{ ...S, phase: "Needs approval" }, ...OLDER] });
+  await sleep(1200); alive(id);
+  showFile(fileView(FILE, SOURCE, EDIT));
+  await sleep(2600); alive(id);
+  await click($("accept"), id);
+  showFile(null);
+  swapLast(call({ kind: "edit", verb: "Edit", detail: FILE, took: "0.1s", body: editBody(FILE, FIX) }));
+  setDock({ title: ASK, working: true, activity: "$ cargo test webhooks", elapsed: "18s" });
+  shell({ phase: "Working", sessions: [S, ...OLDER], changes: [{ path: FILE, state: "M", added: 1, removed: 1 }], graph: [{ path: FILE, state: "M", definitions: 4, uses: 2, usedBy: 1 }], context: { used: 17200 } });
+  await sleep(800); alive(id);
+
+  chapter("Test again");
+  add(calls([call({ kind: "shell", detail: "cargo test webhooks", status: "running" })]));
+  shell({ toolCalls: 5 });
+  await sleep(1900); alive(id);
+  swapLast(call({ kind: "shell", detail: "cargo test webhooks", took: "2.1s" }));
+  await sleep(500); alive(id);
+
+  chapter("Remember the fix");
+  setDock({ title: ASK, working: true, activity: "Remembered “Dead endpoints are retried forever”", elapsed: "27s" });
+  add(calls([memoryCall({ command: "store", title: "Dead endpoints are retried forever", took: "0.1s" })]));
+  shell({ toolCalls: 6, memory: { total: 3, session: [{ verb: "Saved", title: "Dead endpoints are retried forever", kind: "problem" }] } });
+  await sleep(900); alive(id);
+  add(calls([memoryCall({ command: "store", title: "Stop retrying on 410 Gone", took: "0.1s" })]));
+  shell({ toolCalls: 7, memory: { total: 4, session: [{ verb: "Saved", title: "Stop retrying on 410 Gone", kind: "fix" }, { verb: "Saved", title: "Dead endpoints are retried forever", kind: "problem" }] } });
+  await sleep(900); alive(id);
+  add(calls([memoryCall({ command: "link", from_id: "e4f61a2b-9d03-4c7e-b158-0a6f2c84d3e1", relationship: "SOLVES", to_id: "77ad31f8-2c6e-4d19-8b04-e3a9f51d6c20", took: "0.1s" })]));
+  shell({ toolCalls: 8, context: { used: 19800 } });
+  await sleep(900); alive(id);
+
+  chapter("The answer");
+  add(answer(REPLY));
+  add(footer("41s", { calls: 8, read: 1, edited: 1, added: 1, removed: 1 }));
+  setDock({ title: ASK });
+  setStrip({ title: ASK, turn: 21300, session: 21300, hit: "82.0%" });
+  shell({ phase: "Finished", sessions: [{ ...S, phase: "Finished" }, ...OLDER], context: { used: 21300 } });
+  await sleep(5000); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

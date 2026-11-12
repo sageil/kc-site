@@ -1,0 +1,66 @@
+:root {
+  --koda-well: #191A21;
+  --koda-canvas: #282A36;
+  --koda-panel: #21222C;
+  --koda-subtle: #21222C;
+  --koda-hover: #44475A75;
+  --koda-elevated: #343746;
+  --koda-hairline: #41434d;
+  --koda-tool: #343641;
+  --koda-hairline-soft: #373843;
+  --koda-ink: #F8F8F2;
+  --koda-muted: #c8c8c6;
+  --koda-dim: #95a0bf;
+  --koda-accent-indigo: #BD93F9;
+  --koda-accent-indigo-bright: #D6ACFF;
+  --koda-command: #D6ACFF;
+  --koda-accent-cyan: #FF79C6;
+  --koda-accent-cyan-bright: #FF79C6;
+  --koda-accent-purple: #FF79C6;
+  --koda-accent-purple-bright: #FF92DF;
+  --koda-accent-emerald: #50FA7B;
+  --koda-accent-emerald-bright: #69FF94;
+  --koda-accent-amber: #F1FA8C;
+  --koda-accent-amber-bright: #FFFFA5;
+  --koda-accent-rose: #FF5555;
+  --koda-agent-main: #D6ACFF;
+  --koda-diff-add: #50FA7B;
+  --koda-diff-remove: #FF5555;
+  --koda-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.6), 0 0 24px rgba(8, 145, 178, 0.12);
+  --koda-syntax-keyword: #ff79c6;
+  --koda-syntax-string: #f1fa8c;
+  --koda-syntax-number: #bd93f9;
+  --koda-syntax-comment: #6272a4;
+  --koda-syntax-function: #50fa7b;
+  --koda-syntax-type: #8be9fd;
+  --koda-syntax-property: #8be9fd;
+  --koda-syntax-tag: #ff79c6;
+  --koda-syntax-variable: #f8f8f2;
+  --koda-syntax-operator: #ff79c6;
+  --koda-syntax-link: #8be9fd;
+  --koda-syntax-invalid: #ff5555;
+  --koda-terminal-background: #282A36;
+  --koda-terminal-foreground: #F8F8F2;
+  --koda-ansi-black: #21222C;
+  --koda-ansi-red: #FF5555;
+  --koda-ansi-green: #50FA7B;
+  --koda-ansi-yellow: #F1FA8C;
+  --koda-ansi-blue: #BD93F9;
+  --koda-ansi-magenta: #FF79C6;
+  --koda-ansi-cyan: #8BE9FD;
+  --koda-ansi-white: #F8F8F2;
+  --koda-ansi-bright-black: #6272A4;
+  --koda-ansi-bright-red: #FF6E6E;
+  --koda-ansi-bright-green: #69FF94;
+  --koda-ansi-bright-yellow: #FFFFA5;
+  --koda-ansi-bright-blue: #D6ACFF;
+  --koda-ansi-bright-magenta: #FF92DF;
+  --koda-ansi-bright-cyan: #A4FFFF;
+  --koda-ansi-bright-white: #FFFFFF;
+  --koda-check-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='%23282a36' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+.titlebar::after { content: "Koda"; margin-left: 12px; font: 600 13px var(--font-sans); color: var(--koda-ink); }
+.titlebar { height: 32px; }
+#app { zoom: 0.86; }
+#app header .xl\:flex { display: flex; }

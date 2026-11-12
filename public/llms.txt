@@ -1,0 +1,33 @@
+# KodaCode
+
+> KodaCode is a desktop AI coding agent for macOS, Windows and Linux. A lead agent delegates work to agents you define, /crew runs a task on cheap models and lands it only when KodaCode's own check flips from fail to pass, automations check anything an agent can read on a schedule, and goals carry an agreed plan to the end in their own copy of the project. It works with the models you choose: Anthropic, ChatGPT, GitHub Copilot, OpenAI, Google, DeepSeek, Qwen, OpenRouter, Ollama or your own endpoint. API keys are kept in the system keychain.
+
+Built in, not bolted on: the code graph, memory, an editor, a terminal, code review and container isolation come with the app. There are no plugins to install.
+
+## Features
+
+- [Agents](https://kodacode.dev/agents/): a lead agent and specialists with their own instructions, tools and model
+- [Crew](https://kodacode.dev/crew/): /crew hands one task to cheap or local models in a private copy; KodaCode runs the check, which must fail first and pass after, and only then applies the work uncommitted
+- [Sessions](https://kodacode.dev/sessions/): steer or queue messages while a turn runs, rewind the conversation and files to any message, compact long sessions, and let the agent search earlier ones
+- [Terminal](https://kodacode.dev/terminal/): a built-in terminal that opens in the project's Docker or Podman container by default, or as a host shell; docked under the session or floating over it, so you never switch windows
+- [Automations](https://kodacode.dev/automations/): scheduled checks decided by small decision models, in one project, several or none
+- [Goals](https://kodacode.dev/goals/): agreed plans that run in their own copy of the project and merge as one commit
+- [Code graph](https://kodacode.dev/graph/): who calls what across the project
+- [Memory](https://kodacode.dev/memory/): problems, fixes and decisions linked by why
+- [Editor](https://kodacode.dev/editor/): ask about a selection and review agent edits in place
+- [Code review](https://kodacode.dev/review/): security, quality, best-practice and project-rules reviewers, dependency and secret scanners, and a pass that challenges every finding
+- [Control](https://kodacode.dev/control/): approve edits and commands, or let them apply directly
+- [Isolation](https://kodacode.dev/isolation/): run a project in Docker or Podman, with a terminal inside the container
+- [Redaction](https://kodacode.dev/redaction/): mask keys, tokens and passwords before anything reaches the model, use a key through a placeholder, and scan changes for secrets
+- [Models](https://kodacode.dev/models/): the providers it works with, how each signs in, and a different model per agent
+- [MCP servers](https://kodacode.dev/mcp/): tools from any MCP server, local or remote (chat, docs, data, browsers, business apps, internal services), with OAuth sign-in and per-tool approvals
+- [Skills](https://kodacode.dev/skills/): SKILL.md skills the agent loads or you attach to a message, installed from a link after a scan
+
+## Documentation
+
+- [Docs](https://kodacode.dev/docs/): getting started, every feature, every setting, commands, shortcuts, agent tools and files
+
+## About
+
+- [Questions](https://kodacode.dev/faq/): what it is, models, keys, approvals, containers, review and MCP
+- [Download](https://kodacode.dev/download/): coming soon for macOS, Windows and Linux

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Agents Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+<script src="prefs-ui.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const ASK = "Add retries with backoff to outgoing webhooks. Map it first, test it, and get it reviewed.";
+const TEAM = [
+  { name: "@explorer", tone: "cyan", description: "Find every place that sends a webhook", acts: ["query_code_graph", "read_file", "shell"], calls: 9, tok: "4.1k", took: "38s", ms: 3200 },
+  { name: "@test-writer", tone: "purple", description: "Cover the retry path with tests", acts: ["read_file", "write_file", "shell"], calls: 12, tok: "7.3k", took: "1m 12s", ms: 5200 },
+  { name: "@reviewer", tone: "emerald", description: "Review the retry change against main", acts: ["read_file", "query_code_graph", "thinking"], calls: 14, tok: "9.8k", took: "1m 31s", ms: 6400 },
+];
+const AGENT_TONE = {
+  cyan: { track: "border border-accent-cyan/25 p-0.5", bar: "bg-linear-to-r from-accent-cyan to-accent-cyan-bright shadow-sm shadow-accent-cyan", hoverText: "hover:text-accent-cyan-bright", edge: "border-l-accent-cyan" },
+  purple: { track: "border border-accent-purple/25 p-0.5", bar: "bg-linear-to-r from-accent-purple to-pink-400 shadow-sm shadow-accent-purple", hoverText: "hover:text-accent-purple-bright", edge: "border-l-accent-purple" },
+  emerald: { track: "border border-accent-emerald/25 p-0.5", bar: "bg-linear-to-r from-accent-emerald to-accent-emerald-bright shadow-sm shadow-accent-emerald", hoverText: "hover:text-accent-emerald-bright", edge: "border-l-accent-emerald" },
+};
+const q = (s) => document.querySelector(s);
+
+// stream/delegations.rs CompactAgent
+function compactAgent(a, st) {
+  const run = st.status === "running";
+  return `<button type="button" data-row="${a.name}" class="flex w-full min-w-0 cursor-pointer items-center gap-2 py-px text-left font-mono text-app-xs leading-relaxed" aria-label="Open ${a.name}: ${a.description}" title="Open this subagent's run"><span class="shrink-0 text-accent-purple-bright${run ? " animate-pulse" : ""}">${icon("size-3.5", GLYPH.delegate)}</span><span class="shrink-0 font-semibold text-accent-purple-bright">${a.name}</span><span class="min-w-0 truncate text-ink/80" title="${a.description}">${a.description}</span><span class="shrink-0 pl-1 text-dim tabular-nums">${st.calls} calls · ${st.tok} tok</span>${run ? `<span class="min-w-0 truncate text-dim">· ${st.activity}</span><span class="shrink-0 text-accent-cyan-bright">running</span>` : `<span class="shrink-0 text-dim tabular-nums">${a.took}</span>`}</button>`;
+}
+const delegations = (sts) => `<div class="flex flex-col py-1">${TEAM.map((a, i) => compactAgent(a, sts[i])).join("")}</div>`;
+// subagents.rs SubagentFleet and FleetCard
+function fleet(sts) {
+  const arrow = (left) => `<button type="button" class="flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright" title="Scroll fleet ${left ? "left" : "right"}" aria-label="Scroll fleet ${left ? "left" : "right"}">${icon("size-3.5", left ? GLYPH.chevronLeft : GLYPH.chevronRight)}</button>`;
+  const card = (a, st) => {
+    const run = st.status === "running", t = AGENT_TONE[a.tone];
+    return `<div class="flex min-w-[240px] max-w-xs flex-1 flex-col gap-1.5 rounded border p-2 transition ${run ? "border-hairline bg-subtle" : "border-hairline-soft bg-panel"} ${TONES.hover[a.tone]}" title="${a.description}"><div class="flex items-center justify-between gap-2 font-mono text-app-2xs"><div class="flex min-w-0 items-center gap-1.5 font-medium ${TONES.text[a.tone]}"><span class="inline-block size-1.5 shrink-0 rounded-full ${TONES.dot[a.tone]} ${run ? "animate-pulse" : ""}"></span><span class="truncate">${a.name}</span></div><span class="max-w-[110px] truncate font-mono text-app-3xs text-muted" title="${a.description}">${a.description}</span></div><div class="h-1.5 w-full overflow-hidden rounded-full bg-hover ${t.track}"><div class="h-full rounded-full ${run ? "koda-indeterminate w-2/5" : "w-full"} ${t.bar}"></div></div><div class="flex items-center justify-between font-mono text-app-3xs text-muted"><span>${st.calls} calls · ${st.tok} tok</span><div class="flex items-center gap-1.5"><button type="button" class="cursor-pointer text-muted transition ${t.hoverText}" aria-label="Inspect ${a.name}">Inspect</button><span class="text-dim/60">•</span>${run ? `<button type="button" class="cursor-pointer text-muted transition hover:text-accent-amber-bright" aria-label="Stop ${a.name}" title="Stop this subagent">Stop</button>` : '<span class="text-muted" title="">Done</span>'}</div></div></div>`;
+  };
+  return `<div class="relative flex shrink-0 items-center gap-2 border-b border-hairline bg-panel px-2 py-1.5" aria-label="Subagent fleet">${arrow(true)}<div id="koda-subagent-fleet" class="koda-fleet flex flex-1 items-center gap-3 overflow-x-auto py-1">${TEAM.map((a, i) => card(a, sts[i])).join("")}</div>${arrow(false)}</div>`;
+}
+const treeOf = (sts) => TEAM.map((a, i) => ({ name: a.name, tone: a.tone, description: a.description, running: sts[i].status === "running", activity: sts[i].activity }));
+function crew(sts, patch = {}) {
+  const n = sts.filter((s) => s.status === "running").length;
+  shell({ fleet: treeOf(sts), waiting: n, ...patch });
+  $("fleet-slot").innerHTML = fleet(sts);
+  const d = $("deleg");
+  if (d) d.innerHTML = delegations(sts);
+}
+
+async function play(id) {
+  const p = $("pointer"); p.style.left = "640px"; p.style.top = "820px";
+  const view = { agents: PF_AGENTS(), picked: null, list: false, chip: null, drop: null, active: null };
+  mountShell(sessionColumn(), { sessions: [{ title: "Webhooks time out in staging. Find out why and fix it.", ago: "3d ago", turns: 1 }, { title: "Rotate the webhook secret", ago: "7d ago", turns: 3 }] });
+  $("strip-slot").insertAdjacentHTML("afterend", '<div id="fleet-slot"></div>');
+  const paint = (patch = {}) => { Object.assign(view, patch); pfAgentsPaint(view); };
+
+  chapter("The agents screen");
+  await sleep(900); alive(id);
+  await click(q('[aria-label="Manage agents"]'), id);
+  paint(); await sleep(1400); alive(id);
+  await click($("agent-picker"), id);
+  paint({ list: true }); await sleep(1300); alive(id);
+  chapter("Opening @reviewer");
+  await click(q('[data-agent="reviewer"]'), id);
+  paint({ list: false, picked: "reviewer" }); await sleep(1800); alive(id);
+  chapter("Giving it its own model");
+  await click($("chip-model"), id);
+  paint({ chip: "model" }); await sleep(1000); alive(id);
+  await click($("agent-provider"), id);
+  paint({ drop: "provider" }); await sleep(800); alive(id);
+  await click(q('[data-opt="chatgpt"]'), id);
+  view.agents.find((a) => a.name === "reviewer").model = ["chatgpt", ""];
+  paint({ drop: null }); await sleep(700); alive(id);
+  await click($("agent-model"), id);
+  paint({ drop: "model" }); await sleep(800); alive(id);
+  await click(q('[data-opt="gpt-5"]'), id);
+  view.agents.find((a) => a.name === "reviewer").model = ["chatgpt", "gpt-5"];
+  paint({ drop: null }); await sleep(1000); alive(id);
+  await click($("chip-model"), id);
+  paint({ chip: null }); await sleep(600); alive(id);
+  await click(q('[data-act="Save"]'), id);
+  await sleep(900); alive(id);
+  await click(q('[data-act="Close"]'), id);
+  closeScreen(); await sleep(600); alive(id);
+
+  chapter("The lead reads the task");
+  await click($("prompt"), id);
+  for (let i = 1; i <= ASK.length; i += 3) { $("dock-slot").innerHTML = dock({ text: ASK.slice(0, i), caret: true }); await sleep(40); alive(id); }
+  $("dock-slot").innerHTML = dock({ text: ASK, caret: true }); await sleep(500); alive(id);
+  await click($("send"), id);
+  const me = { title: ASK, ago: "just now", turns: 1, phase: "Working", selected: true };
+  $("strip-slot").innerHTML = sessionStrip({ title: ASK, turn: 0, session: 0 });
+  $("dock-slot").innerHTML = dock({ title: ASK, working: true, activity: "Thinking", elapsed: "1s" });
+  pfAdd(said(ASK));
+  shell({ phase: "Working", doing: ASK, sessions: [me, ...SH.sessions], context: { used: 6200 } });
+  await sleep(1000); alive(id);
+  pfAdd(calls([call({ kind: "read", detail: "src/webhooks/deliver.rs", took: "0.1s" })]));
+  shell({ toolCalls: 1, context: { used: 9400 } });
+  await sleep(900); alive(id);
+  pfAdd(calls([call({ kind: "graph", detail: "deliver, retry, webhook", took: "0.3s" })]));
+  shell({ toolCalls: 2, context: { used: 11800 } });
+  await sleep(900); alive(id);
+
+  chapter("Three agents at once");
+  const sts = TEAM.map(() => ({ status: "running", activity: "starting", calls: 0, tok: "0" }));
+  pfAdd('<div id="deleg" class="enter"></div>');
+  crew(sts, { toolCalls: 5 });
+  $("dock-slot").innerHTML = dock({ title: ASK, working: true, activity: "Delegate @explorer: Find every place that sends a webhook", elapsed: "6s" });
+  const t0 = now();
+  while (sts.some((s) => s.status === "running")) {
+    await sleep(500); alive(id);
+    const el = now() - t0;
+    TEAM.forEach((a, i) => {
+      const s = sts[i];
+      if (s.status !== "running") return;
+      if (el >= a.ms) { Object.assign(s, { status: "done", activity: "done", calls: a.calls, tok: a.tok }); return; }
+      s.calls = Math.min(a.calls - 1, Math.floor((el / a.ms) * a.calls));
+      s.tok = `${(s.calls * 0.65).toFixed(1)}k`;
+      s.activity = a.acts[Math.floor(el / 900) % a.acts.length];
+    });
+    const changes = el > 3000 ? [{ path: "src/webhooks/retry.rs", state: "M", added: 24, removed: 3 }, ...(el > 4400 ? [{ path: "tests/webhooks.rs", state: "M", added: 41, removed: 0 }] : [])] : [];
+    crew(sts, { context: { used: 11800 + Math.floor(el / 2) }, changes, graph: changes.map((c) => ({ path: c.path, state: "M", definitions: c.path.startsWith("src") ? 5 : 9, uses: 3, usedBy: c.path.startsWith("src") ? 2 : 0 })) });
+  }
+  await sleep(1200); alive(id);
+
+  chapter("Inside @reviewer's run");
+  await click(q('#deleg [data-row="@reviewer"]'), id);
+  const r = TEAM[2], t = AGENT_TONE.emerald;
+  const kept = $("log").innerHTML;
+  $("scroll").scrollTop = 0;
+  $("log").innerHTML = `<div class="sticky -top-4 z-10 -mx-4 -mt-4 flex items-center gap-3 border-b border-l-[3px] border-hairline ${t.edge} bg-canvas/95 px-4 py-2 font-mono text-app-xs backdrop-blur"><button id="back" type="button" class="flex shrink-0 cursor-pointer items-center gap-1 rounded border border-hairline bg-subtle px-2 py-1 text-muted transition hover:bg-hover hover:text-ink" aria-label="Back to the main agent">${icon("size-3.5", GLYPH.chevronLeft)}Main agent</button><span class="size-2 shrink-0 rounded-full ${TONES.dot.emerald}"></span><span class="shrink-0 font-semibold ${TONES.text.emerald}">${r.name}</span><span class="min-w-0 truncate text-muted" title="${r.description}">${r.description}</span><span class="ml-auto shrink-0 text-app-2xs text-dim tabular-nums">${r.calls} calls · ${r.tok} tok</span><span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase border-hairline bg-subtle text-muted"><span class="truncate">done</span></span></div>`
+    + said("Review the retry change against main. Report findings, most severe first, with the file and line for each.")
+    + calls([
+      call({ kind: "shell", detail: "git diff main -- src/webhooks/retry.rs", took: "0.4s", body: output(["@@ -12,6 +12,10 @@", "+pub fn should_retry(status: u16, attempt: u32) -> bool {", "+    attempt < 5 && (status >= 500 || status == 410)", "+}"]), open: true }),
+      call({ kind: "read", detail: "src/webhooks/retry.rs", took: "0.1s" }),
+      call({ kind: "graph", detail: "should_retry, callers", took: "0.2s" }),
+      call({ kind: "read", detail: "tests/webhooks.rs", took: "0.1s" }),
+    ])
+    + answer("**1 finding**\n\n**Medium** · `src/webhooks/retry.rs:14`: a 410 Gone reply is retried. It must stop at once.");
+  await sleep(3800); alive(id);
+
+  chapter("Back with the answer");
+  await click($("back"), id);
+  $("log").innerHTML = kept;
+  $("log").querySelectorAll(".enter").forEach((el) => el.classList.remove("enter"));
+  crew(sts);
+  await sleep(800); alive(id);
+  pfAdd(calls(TEAM.map(() => call({ kind: "poll", verb: "Closed a subagent" }))));
+  shell({ toolCalls: 8 });
+  await sleep(900); alive(id);
+  pfAdd(answer("**Retries are in.** The wait doubles from 250 ms, for at most 5 tries.\n\n- @test-writer added 4 tests, and they pass.\n- @reviewer found that a 410 Gone reply was retried. It now stops at once."));
+  pfAdd(footer("1m 46s", { calls: 8, read: 1 }));
+  me.phase = "Finished";
+  $("dock-slot").innerHTML = dock({ title: ASK });
+  $("strip-slot").innerHTML = sessionStrip({ title: ASK, turn: 34200, session: 34200, hit: "68.0%" });
+  crew(sts, { phase: "Finished", sessions: SH.sessions, context: { used: 34200 } });
+  chapter("Finished");
+  await sleep(4200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

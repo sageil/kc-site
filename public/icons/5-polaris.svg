@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#18202e"/><stop offset="1" stop-color="#080b11"/></linearGradient>
+<linearGradient id="acc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset=".55" stop-color="#6366f1"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
+<linearGradient id="aur" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#10b981"/><stop offset=".5" stop-color="#22d3ee"/><stop offset="1" stop-color="#a855f7"/></linearGradient>
+<filter id="blur" x="-50%" y="-100%" width="200%" height="300%"><feGaussianBlur stdDeviation="40"/></filter>
+<radialGradient id="glow"><stop offset="0" stop-color="#c7d2fe" stop-opacity=".9"/><stop offset="1" stop-color="#6366f1" stop-opacity="0"/></radialGradient>
+<clipPath id="t"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath></defs>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+<g clip-path="url(#t)">
+<path d="M60 760C260 600 420 820 600 680S900 560 1000 620" fill="none" stroke="url(#aur)" stroke-width="150" filter="url(#blur)" opacity=".8"/>
+<circle cx="512" cy="440" r="210" fill="url(#glow)" opacity=".55"/>
+</g><rect x="100" y="100" width="824" height="824" rx="185" fill="none" stroke="#ffffff" stroke-opacity=".08" stroke-width="4"/>
+<path d="M512 200C528 380 572 424 752 440C572 456 528 500 512 680C496 500 452 456 272 440C452 424 496 380 512 200Z" fill="#f8fafc"/>
+</svg>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Automations Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+<script src="automation-ui.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const resetPointer = () => { $("pointer").style.left = "640px"; $("pointer").style.top = "820px"; };
+const scale = () => $("stage").getBoundingClientRect().width / 1280;
+const offsetIn = (b, el) => (el.getBoundingClientRect().top - b.getBoundingClientRect().top) / scale() + b.scrollTop;
+async function glide(b, to, id, ms = 450) {
+  const from = b.scrollTop, steps = 9;
+  for (let i = 1; i <= steps; i++) {
+    b.scrollTop = from + ((to - from) * i) / steps;
+    await sleep(ms / steps); alive(id);
+  }
+}
+const FILE = "~/dev/acme-api/.koda/automations/pharma-cluster-health.json";
+const LIST = [
+  { group: "This project", name: "pharma-cluster-health", trailing: "every 15m", detail: "Checks the pharma cluster and starts an agent to investigate when it is unhealthy" },
+  { group: "Built-in", name: "dependency-change-watch", trailing: "manual", detail: "Reviews dependency changes in the latest commit" },
+  { group: "Built-in", name: "risky-change-review", trailing: "manual", detail: "Reviews the latest commit when it is risky or touches sensitive code" },
+];
+const healthy = (when) => ({ when, scheduled: true, tone: "neutral", outcome: "No rule matched and nothing to do", answer: "yes 98%" });
+const earlier = [healthy("4 min ago"), healthy("19 min ago"), healthy("34 min ago")];
+let s;
+const reset = () => { s = { ...AU.pharma(), pane: "doc", file: FILE, runsTab: true, runs: earlier, list: LIST, picker: false, chip: null, tried: null, unsaved: false, running: false }; };
+const render = () => openScreen("automations", AU.screen(s));
+const status = (kind) => shell({ phase: kind === "working" ? "Working" : "Finished" });
+const DESCRIBE = [
+  "NAME            STATUS     ROLES    AGE",
+  "pharma-node-1   Ready      worker   41d",
+  "pharma-node-2   NotReady   worker   41d",
+  "pharma-node-3   Ready      worker   41d",
+];
+const PODS = [
+  "NAMESPACE   NAME                         READY   STATUS             RESTARTS",
+  "assay       results-api-7d9f8-xk2lp      0/1     CrashLoopBackOff   14",
+  "assay       results-api-7d9f8-q8m4r      0/1     Pending            0",
+];
+const LOGS = [
+  "Error: connect ECONNREFUSED 10.4.2.17:5432",
+  "    at TCPConnectWrap.afterConnect",
+  "fatal: could not reach postgres after 5 attempts",
+];
+async function play(id) {
+  reset(); mountShell(sessionColumn()); render(); resetPointer();
+  chapter("Its runs so far");
+  await sleep(1400); alive(id);
+  chapter("Your automations");
+  await click($("picker"), id);
+  s.picker = true; render(); await sleep(1600); alive(id);
+  await click($("picker"), id);
+  s.picker = false; render(); await sleep(500); alive(id);
+  chapter("Run now");
+  await click($("run-now"), id);
+  s.running = true; s.runs = [{ when: "just now", tone: "amber", outcome: "Running or stopped before it finished", fresh: true }, ...earlier]; render();
+  await sleep(2400); alive(id);
+  chapter("Rule 1 matched");
+  s.running = false; s.runs = [{ when: "just now", tone: "emerald", outcome: "Rule 1 matched", answer: "yes 4%", agent: AU.PROMPT, fresh: true }, ...earlier]; render();
+  await sleep(1600); alive(id);
+  await click($("open-session"), id);
+  chapter("The session it ran");
+  closeScreen();
+  status("done");
+  shell({ toolCalls: 5, doing: AU.PROMPT, sessions: [{ title: AU.PROMPT, ago: "just now", turns: 1, phase: "Finished", selected: true }, ...SH.sessions], context: { used: 14800 } });
+  $("strip-slot").innerHTML = sessionStrip({ title: AU.PROMPT, turn: 14800, session: 14800, hit: "64.0%" });
+  $("dock-slot").innerHTML = dock({ title: AU.PROMPT });
+  $("log").innerHTML = said(AU.PROMPT) + calls([
+    call({ kind: "shell", detail: "kubectl --context pharma get nodes", took: "0.8s", body: output(DESCRIBE) }),
+    call({ kind: "shell", detail: "kubectl --context pharma get pods -A --field-selector=status.phase!=Running", took: "1.1s", body: output(PODS) }),
+    call({ kind: "shell", detail: "kubectl --context pharma describe node pharma-node-2", took: "0.9s" }),
+    call({ kind: "shell", detail: "kubectl --context pharma logs -n assay results-api-7d9f8-xk2lp --tail 40", took: "0.7s", body: output(LOGS), open: true }),
+    memoryCall({ command: "recall", query: "pharma postgres outages", took: "0.1s" }),
+  ]) + answer("**pharma-node-2 is NotReady**: its kubelet stopped reporting 22 minutes ago after the disk filled (`DiskPressure`).\n\n**results-api is crash-looping** because its database, `assay-postgres`, was scheduled on that node and is unreachable at `10.4.2.17:5432`. One replica is `Pending` with no room on the other nodes.\n\nTo fix it:\n\n1. Free space on pharma-node-2 or drain it: `kubectl drain pharma-node-2 --ignore-daemonsets`\n2. Let `assay-postgres` reschedule, then restart results-api: `kubectl -n assay rollout restart deploy/results-api`") + footer("38s", { calls: 5 });
+  $("scroll").scrollTop = 0;
+  await sleep(2200); alive(id);
+  chapter("Its report");
+  const box = $("scroll"), from = box.scrollTop, to = box.scrollHeight;
+  for (let k = 1; k <= 12; k++) { box.scrollTop = from + ((to - from) * k) / 12; await sleep(60); alive(id); }
+  await sleep(5200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

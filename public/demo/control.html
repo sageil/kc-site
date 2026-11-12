@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Approvals Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<style>.stage { height: 640px; }</style>
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div class="flex min-h-0 grow flex-col bg-canvas">
+    <div class="flex shrink-0 items-start gap-2 border-b border-hairline px-4 py-2.5 font-mono text-app-xs"><span class="shrink-0 font-bold text-command">❯</span><p class="m-0 font-semibold text-ink">Fix the flaky retry test. The shared config is next door in ../shared-config if you need it.</p></div>
+    <div class="grid min-h-0 grow grid-cols-2 gap-4 p-4">
+      <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-hairline bg-panel">
+        <header class="flex items-center justify-between gap-3 border-b border-hairline px-3 py-2 font-mono text-app-xs"><span class="font-semibold text-ink">Runs on: Host</span><span class="flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-app-2xs transition border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright"><span class="size-1.5 shrink-0 rounded-full bg-accent-amber"></span><span class="truncate">Host · asks first</span><svg class="size-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></header>
+        <div id="left-scroll" class="min-h-0 grow overflow-y-auto p-3"><div id="left" class="flex flex-col gap-2"></div></div>
+        <footer id="left-count" class="flex items-center justify-between gap-3 border-t border-hairline px-3 py-2 font-mono text-app-2xs text-dim tabular-nums"></footer>
+      </section>
+      <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-hairline bg-panel">
+        <header class="flex items-center justify-between gap-3 border-b border-hairline px-3 py-2 font-mono text-app-xs"><span class="font-semibold text-ink">Runs on: Docker</span><span class="flex max-w-[260px] cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-app-2xs transition border-accent-cyan/35 bg-accent-cyan/12 text-accent-cyan-bright"><span class="size-1.5 shrink-0 rounded-full bg-accent-cyan"></span><span class="truncate">Docker · rust · applies directly</span><svg class="size-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></header>
+        <div id="right-scroll" class="min-h-0 grow overflow-y-auto p-3"><div id="right" class="flex flex-col gap-2"></div></div>
+        <footer id="right-count" class="flex items-center justify-between gap-3 border-t border-hairline px-3 py-2 font-mono text-app-2xs text-dim tabular-nums"></footer>
+      </section>
+    </div>
+  </div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const chip = (label) => `<span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright"><span class="truncate">${label}</span></span>`;
+const caption = (line, badge) => `<div class="flex items-center justify-between gap-3 border-t border-hairline bg-canvas/60 px-3 py-2 font-mono text-app-xs text-dim"><span class="whitespace-pre-wrap break-all text-dim">${line}</span>${chip(badge)}</div>`;
+const RETRY = "src/webhooks/retry.rs";
+const DIFF_LINES = ["  let deadline = started + policy.deadline;", "- if attempt < policy.max_attempts {", "+ if attempt < policy.max_attempts", "+     && Instant::now() < deadline", "+ {"];
+const pane = (name) => ({ list: $(name), scroll: $(`${name}-scroll`), calls: 0, stops: 0, block: null });
+let L, R;
+const down = (p) => { p.scroll.scrollTop = p.scroll.scrollHeight; };
+const block = (p) => {
+  if (!p.block) {
+    p.list.insertAdjacentHTML("beforeend", '<div class="flex flex-col py-1"></div>');
+    p.block = p.list.lastElementChild;
+  }
+  return p.block;
+};
+const row = (p, spec) => {
+  block(p).insertAdjacentHTML("beforeend", call(spec));
+  down(p);
+  return p.block.lastElementChild;
+};
+const swap = (el, spec) => {
+  el.insertAdjacentHTML("beforebegin", call(spec));
+  const next = el.previousElementSibling;
+  next.classList.remove("enter");
+  el.remove();
+  return next;
+};
+const put = (p, html) => {
+  p.block = null;
+  p.list.insertAdjacentHTML("beforeend", html);
+  down(p);
+  return p.list.lastElementChild;
+};
+const counter = (p, extra) => `<span>${p.calls} tool call${p.calls === 1 ? "" : "s"}</span><span>${extra || `stopped for you ${p.stops} time${p.stops === 1 ? "" : "s"}`}</span>`;
+const tick = () => { $("left-count").innerHTML = counter(L); $("right-count").innerHTML = counter(R, R.done ? "keep or discard each file afterwards" : "never stopped"); };
+const gate = ({ preview, reason, tool, args, shell, accept }) => `<div class="enter flex items-start gap-2.5 rounded-lg border p-3.5 border-accent-amber/30 bg-accent-amber/5">${icon("mt-0.5 size-[18px] shrink-0 text-accent-amber-bright", GLYPH.shield)}<div class="flex min-w-0 flex-col gap-1">
+  <span class="text-app-sm font-medium text-accent-amber-bright">Approval required</span>
+  <p class="text-app-sm leading-relaxed text-muted">${esc(preview)}</p>
+  ${reason ? `<p class="text-app-sm leading-relaxed text-muted"><span class="text-dim">Reason: </span><span class="text-ink">${esc(reason)}</span></p>` : ""}
+  ${shell ? `<p class="text-app-sm leading-relaxed text-muted"><span class="text-dim">Agent's description: </span><span class="text-ink">${esc(shell.description)}</span></p><p class="text-app-sm leading-relaxed text-muted"><span class="text-dim">Agent's label: </span><span class="text-ink">${shell.operation}</span></p>` : ""}
+  <p class="flex flex-wrap items-center gap-x-1.5 font-mono text-app-2xs text-dim"><span>tool</span><code class="rounded bg-canvas px-1 py-0.5 text-accent-amber-bright">${tool}</code><span>arguments</span><code class="max-w-full truncate rounded bg-canvas px-1 py-0.5 text-accent-amber-bright">${esc(args)}</code></p>
+  <span class="mt-1 w-full rounded border border-hairline bg-canvas px-2 py-1 text-app-xs text-dim">Optional note for the agent, e.g. only do what I asked</span>
+  <div class="mt-1 flex items-center gap-2"><button id="${accept}" type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-emerald/40 bg-accent-emerald/10 px-2.5 py-1 text-app-xs font-medium text-accent-emerald-bright transition hover:bg-accent-emerald/20">${icon("size-3.5", GLYPH.check)}${shell ? "Run once" : "Approve"}</button>${shell ? `<button type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-hairline bg-subtle px-2.5 py-1 text-app-xs font-medium text-ink transition hover:bg-hover">${icon("size-3.5", GLYPH.shield)}Allow for this session</button>` : ""}<button type="button" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-rose/40 bg-accent-rose/10 px-2.5 py-1 text-app-xs font-medium text-accent-rose transition hover:bg-accent-rose/20">${icon("size-3.5", GLYPH.close)}Deny</button></div>
+</div></div>`;
+const editCard = ({ summary, added, removed, accept }) => `<section class="enter shrink-0 rounded-lg border border-hairline bg-panel" tabindex="-1" aria-label="Proposed change"><header class="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2"><div class="flex min-w-0 items-center gap-2">${icon("size-[15px] shrink-0 text-accent-indigo-bright", GLYPH.diff)}<span class="truncate text-app-sm font-medium text-ink">${esc(summary)}</span></div><span class="shrink-0 font-mono text-app-2xs tabular-nums"><span class="text-accent-emerald-bright">+${added}</span><span class="text-dim"> </span><span class="text-accent-rose">-${removed}</span></span></header><footer class="flex flex-wrap items-center gap-2 border-t border-hairline px-4 py-2"><button id="${accept}" type="button" aria-label="Accept change" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-emerald/40 bg-accent-emerald/10 px-2.5 py-1 text-app-xs font-medium text-accent-emerald-bright transition hover:bg-accent-emerald/20">${icon("size-3.5", GLYPH.check)}Accept<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">↵</kbd></button><button type="button" aria-label="Reject change" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-rose/40 bg-accent-rose/10 px-2.5 py-1 text-app-xs font-medium text-accent-rose transition hover:bg-accent-rose/20">${icon("size-3.5", GLYPH.close)}Reject<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">⌫</kbd></button><span class="min-w-0 grow rounded border border-hairline bg-canvas px-2 py-1 text-app-xs text-dim">Optional note sent with a rejection</span></footer></section>`;
+const changed = (kept) => `<div class="enter flex items-center justify-between gap-2 rounded-lg border border-hairline bg-canvas px-2 py-1 font-mono text-app-xs"><div class="flex min-w-0 grow items-center justify-between gap-2 rounded p-1 transition hover:bg-hover"><button type="button" class="flex min-w-0 grow cursor-pointer items-center gap-1.5 text-left"><span class="size-1.5 shrink-0 rounded-full bg-accent-amber"></span><span class="truncate text-ink/80">${RETRY}</span></button><div class="flex shrink-0 items-center gap-2 tabular-nums"><span class="text-accent-emerald-bright">+3</span><span class="text-accent-rose">-1</span>${kept ? '<span class="text-accent-emerald-bright">Kept</span><button type="button" class="cursor-pointer text-muted transition hover:text-ink">Undo</button>' : '<button id="keep" type="button" class="cursor-pointer text-accent-cyan-bright transition hover:text-accent-cyan">Keep</button>'}<button type="button" class="cursor-pointer text-muted transition hover:text-accent-rose">Discard</button></div></div></div>`;
+const TEST = { kind: "shell", detail: "cargo test retry" };
+const LS = { kind: "shell", detail: "ls ../shared-config" };
+const EDIT = { kind: "edit", verb: "Edit", detail: RETRY };
+const LS_ARGS = '{"command":"ls ../shared-config","description":"List the shared config folder","operation":"read"}';
+
+async function both(id, ms, left, right) {
+  const a = left && row(L, { ...left, status: "running" });
+  const b = right && row(R, { ...right, status: "running" });
+  await sleep(ms); alive(id);
+  return [a, b];
+}
+
+async function play(id) {
+  $("left").innerHTML = ""; $("right").innerHTML = "";
+  L = pane("left"); R = pane("right");
+  $("pointer").style.left = "640px"; $("pointer").style.top = "700px";
+  tick();
+  chapter("Same task, two places");
+  await sleep(900); alive(id);
+
+  chapter("Both find the failing test");
+  let [a, b] = await both(id, 1300, TEST, TEST);
+  swap(a, { ...TEST, took: "8.4s", status: "exit 101" }); swap(b, { ...TEST, took: "8.1s", status: "exit 101" });
+  L.calls++; R.calls++; tick();
+  [a, b] = await both(id, 600, { kind: "read", detail: `${RETRY}:1-96` }, { kind: "read", detail: `${RETRY}:1-96` });
+  swap(a, { kind: "read", detail: `${RETRY}:1-96` }); swap(b, { kind: "read", detail: `${RETRY}:1-96` });
+  L.calls++; R.calls++; tick();
+  await sleep(500); alive(id);
+
+  chapter("The host asks before an edit");
+  const leftEdit = row(L, { ...EDIT, status: "approval", body: editBody(RETRY, DIFF_LINES) });
+  L.calls++; L.stops++;
+  const editGate = put(L, editCard({ summary: `edit ${RETRY} (replacing 1 lines)`, added: 3, removed: 1, accept: "approve-edit" }));
+  row(R, { ...EDIT, took: "0.3s", body: editBody(RETRY, DIFF_LINES) });
+  R.calls++; tick();
+  await sleep(700); alive(id);
+  [, b] = await both(id, 700, null, LS);
+  swap(b, { ...LS, took: "0.1s", status: "exit 2" });
+  R.calls++; tick();
+  await sleep(400); alive(id);
+  [, b] = await both(id, 1200, null, TEST);
+  swap(b, { ...TEST, took: "10.0s", body: output(["Compiling acme-api v0.4.2", "Process running with session ID 4"]) });
+  R.calls++; tick();
+  await click($("approve-edit"), id);
+  editGate.remove();
+  L.block = leftEdit.parentElement;
+  swap(leftEdit, { ...EDIT, took: "0.3s", body: editBody(RETRY, DIFF_LINES) });
+  await sleep(400); alive(id);
+
+  chapter("A command outside the project");
+  const parked = row(L, { ...LS, status: "approval", body: caption("waiting for your approval", "needs you"), open: true });
+  L.calls++; L.stops++; tick();
+  const lsGate = put(L, gate({ preview: "run `ls ../shared-config`", reason: "outside the project (`/Users/you/dev/shared-config`)", tool: "shell", args: LS_ARGS, shell: { description: "List the shared config folder", operation: "read" }, accept: "run-once" }));
+  [, b] = await both(id, 900, null, { kind: "poll", verb: "Checked on a running command" });
+  swap(b, { kind: "poll", verb: "Checked on a running command", took: "3.2s" });
+  R.calls++; tick();
+  put(R, answer("The retry loop now stops at its deadline as well as after `max_attempts`; `cargo test retry` passes, 6 of 6. `../shared-config` is not in the container, so I left it alone."));
+  put(R, footer("41s", { calls: R.calls, read: 1, edited: 1, added: 3, removed: 1 }));
+  R.done = true;
+  put(R, changed(false));
+  tick();
+  await sleep(1300); alive(id);
+  await click($("run-once"), id);
+  lsGate.remove();
+  L.block = parked.parentElement;
+  const ran = swap(parked, { ...LS, status: "running" });
+  await sleep(600); alive(id);
+  swap(ran, { ...LS, took: "0.1s" });
+
+  chapter("Tests pass on both");
+  [a] = await both(id, 1200, TEST, null);
+  swap(a, { ...TEST, took: "7.9s" });
+  L.calls++; tick();
+  put(L, answer("The retry loop now stops at its deadline as well as after `max_attempts`, and `cargo test retry` passes, 6 of 6. The shared config's `retry.toml` sets the same deadline."));
+  put(L, footer("1m 06s", { calls: L.calls, read: 1, edited: 1, added: 3, removed: 1 }));
+  await sleep(1400); alive(id);
+
+  chapter("Keep the container's change");
+  await click($("keep"), id);
+  R.list.lastElementChild.outerHTML = changed(true);
+  await sleep(4200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage(640);
+loop(play)();
+</script>
+</body>
+</html>

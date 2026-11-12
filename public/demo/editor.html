@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Editor Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<style>
+  .row { height: 20px; line-height: 20px; }
+  .kw { color: var(--koda-syntax-keyword); }
+  .ty { color: var(--koda-syntax-type); }
+  .nu { color: var(--koda-syntax-number); }
+  .fn { color: var(--koda-syntax-function); }
+  .st { color: var(--koda-syntax-string); }
+  .ask { position: absolute; margin: 4px 0; padding: 4px 10px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--koda-agent-main) 45%, var(--koda-hairline)); background: var(--koda-elevated); color: var(--koda-ink); font: 12px var(--font-sans); cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); transition: transform .12s, background .12s; }
+</style>
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const CENTRE = `    <header class="flex h-(--koda-tab-h) shrink-0 items-center gap-1.5 border-b border-hairline bg-well px-2">
+      <button type="button" title="Scroll tabs left" aria-label="Scroll tabs left" class="flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 19-7-7 7-7"/></svg></button>
+      <div class="koda-no-scrollbar flex h-full min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+        <div class="flex h-full shrink-0 items-center gap-1 border-t-2 border-t-transparent px-2 font-mono text-app-2xs text-muted transition hover:bg-subtle">
+          <button id="tab-retry" type="button" aria-label="Open tab src/webhooks/retry.rs" class="flex cursor-pointer items-center gap-1.5 truncate"><svg class="size-3 shrink-0 text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg><span class="truncate">retry.rs</span></button>
+          <span id="tab-review" aria-label="src/webhooks/retry.rs has a change waiting for review" title="A change to this file is waiting for your decision. Accept or reject it first." class="flex size-4 shrink-0 items-center justify-center" style="display:none"><span class="size-1.5 rounded-full bg-accent-amber"></span></span>
+          <button id="tab-close" type="button" aria-label="Close tab src/webhooks/retry.rs" title="Close tab" class="flex size-4 shrink-0 cursor-pointer items-center justify-center rounded text-dim transition hover:bg-hover hover:text-ink"><svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="flex h-full shrink-0 items-center gap-1 border-t-2 border-t-transparent px-2 font-mono text-app-2xs text-muted transition hover:bg-subtle">
+          <button type="button" aria-label="Open tab src/webhooks/deliver.rs" class="flex cursor-pointer items-center gap-1.5 truncate"><svg class="size-3 shrink-0 text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg><span class="truncate">deliver.rs</span></button>
+          <button type="button" aria-label="Close tab src/webhooks/deliver.rs" title="Close tab" class="flex size-4 shrink-0 cursor-pointer items-center justify-center rounded text-dim transition hover:bg-hover hover:text-ink"><svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+      </div>
+      <button type="button" title="Scroll tabs right" aria-label="Scroll tabs right" class="flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></button>
+    </header>
+    <section id="file" class="flex min-h-0 grow flex-col overflow-hidden bg-canvas">
+      <div class="flex h-6 shrink-0 select-none items-center justify-between gap-3 border-b border-hairline-soft bg-canvas/60 px-4 font-mono text-app-2xs text-dim">
+        <div class="flex min-w-0 items-center gap-1.5">
+          <span class="truncate hover:text-muted">src/webhooks</span>
+          <svg class="size-3 shrink-0 -rotate-90 text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          <span class="flex min-w-0 items-center gap-1 font-medium text-ink"><svg class="size-3 shrink-0 text-accent-indigo-bright" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg><span class="truncate">retry.rs</span></span>
+          <span id="doing" class="flex shrink-0 items-center gap-1 rounded-full border border-accent-indigo/40 bg-accent-indigo/10 px-1.5 text-accent-indigo-bright" style="display:none"><span class="animate-pulse">●</span><span id="doing-text"></span></span>
+        </div>
+        <div class="flex shrink-0 items-center gap-2"><span>Rust</span><span>UTF-8</span></div>
+      </div>
+
+      <div id="body" class="relative min-h-0 grow overflow-hidden px-4 py-2 font-mono text-code-editor">
+        <div id="said" class="absolute top-3 right-4 z-10 flex items-center gap-1.5 rounded-full bg-accent-indigo/15 px-3 py-1.5 text-app-sm text-accent-indigo-bright" style="display:none">
+          <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>
+          Agent is editing line 20…
+        </div>
+        <div id="code"></div>
+        <button id="ask" type="button" class="ask" style="display:none">Ask the agent about this selection</button>
+      </div>
+
+      <section id="card" aria-label="Proposed change" class="shrink-0 border-t border-hairline bg-panel" style="display:none">
+        <header class="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2">
+          <div class="flex min-w-0 items-center gap-2"><span id="card-glyph"></span><span class="truncate text-app-sm font-medium text-ink">Stop retrying on 410 Gone</span></div>
+          <span class="shrink-0 font-mono text-app-2xs tabular-nums"><span class="text-accent-emerald-bright">+1</span><span class="text-dim"> </span><span class="text-accent-rose">-1</span></span>
+        </header>
+        <footer class="flex flex-wrap items-center gap-2 border-t border-hairline px-4 py-2">
+          <button id="accept" type="button" aria-label="Accept change" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-emerald/40 bg-accent-emerald/10 px-2.5 py-1 text-app-xs font-medium text-accent-emerald-bright transition hover:bg-accent-emerald/20"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Accept<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">⌘↵</kbd></button>
+          <button type="button" aria-label="Reject change" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-rose/40 bg-accent-rose/10 px-2.5 py-1 text-app-xs font-medium text-accent-rose transition hover:bg-accent-rose/20"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Reject<kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">⌘⌫</kbd></button>
+          <input type="text" tabindex="-1" aria-label="Note for the agent" placeholder="Optional note sent with a rejection" class="min-w-0 grow rounded border border-hairline bg-canvas px-2 py-1 text-app-xs text-ink outline-none placeholder:text-dim">
+        </footer>
+      </section>
+
+      <div class="flex h-6 shrink-0 select-none items-center justify-between gap-3 border-t border-hairline bg-well px-3 font-mono text-app-2xs text-dim">
+        <div class="flex min-w-0 items-center gap-2"><span class="truncate">retry.rs</span><span class="text-hairline">·</span><span>Rust</span></div>
+        <div class="flex shrink-0 items-center gap-3"><button type="button" title="Wrap long lines (Alt+Z)" class="cursor-pointer rounded px-1 transition hover:bg-hover hover:text-ink">Wrap: off</button><span>Spaces: 2</span><span>LF</span></div>
+      </div>
+    </section>
+    <div id="strip-slot" style="display:none"></div>
+    <div id="sess-body" class="flex min-h-0 grow flex-col overflow-hidden" style="display:none"><div id="scroll" class="h-full overflow-y-auto p-4" aria-label="Transcript"><div id="log" class="mx-auto flex w-full flex-col gap-3"></div></div></div>
+    <div id="dock-slot"></div>`;
+const PATH = "src/webhooks/retry.rs";
+const source = [
+  "use crate::parser::parse_header;",
+  "",
+  "pub struct Backoff {",
+  "    pub base_ms: u64,",
+  "    pub max_tries: u32,",
+  "}",
+  "",
+  "impl Backoff {",
+  "    pub fn delay(&self, attempt: u32) -> u64 {",
+  "        self.base_ms * 2u64.pow(attempt)",
+  "    }",
+  "}",
+  "",
+  "pub fn should_retry(status: u16, attempt: u32, backoff: &Backoff) -> bool {",
+  "    if attempt >= backoff.max_tries {",
+  "        return false;",
+  "    }",
+  "    match status {",
+  "        408 | 429 | 500..=599 => true,",
+  "        _ => status != 400 && status != 401,",
+  "    }",
+  "}",
+  "",
+  "pub fn retry_after(headers: &str) -> Option<u64> {",
+  "    parse_header(headers, \"retry-after\")?.parse().ok()",
+  "}",
+];
+const FIXED = "        _ => !matches!(status, 400 | 401 | 410),";
+const CHANGED_LINE = 19;
+const SELECT = [18, 21];
+const QUESTION = "Does this keep retrying a 410 Gone? It shouldn't.";
+const selected = source.slice(SELECT[0] - 1, SELECT[1]);
+const QUOTED = `\`${PATH}\` lines ${SELECT[0]}–${SELECT[1]}:\n\`\`\`rs\n${selected.join("\n")}\n\`\`\`\n`;
+const TYPED = `${QUOTED}${QUESTION}`;
+const TITLE = [...TYPED.trim()].length <= 120 ? TYPED.trim() : `${[...TYPED.trim()].slice(0, 119).join("")}…`;
+const TREE = [
+  { name: "Cargo.toml", path: "Cargo.toml" }, { name: "README.md", path: "README.md" },
+  { name: "deploy", path: "deploy", folder: true, closed: true },
+  { name: "migrations", path: "migrations", folder: true, closed: true },
+  { name: "src", path: "src", folder: true },
+  { name: "main.rs", path: "src/main.rs", depth: 1 }, { name: "router.rs", path: "src/router.rs", depth: 1 },
+  { name: "webhooks", path: "src/webhooks", folder: true, depth: 1 },
+  { name: "deliver.rs", path: "src/webhooks/deliver.rs", depth: 2 }, { name: "retry.rs", path: "src/webhooks/retry.rs", depth: 2 },
+  { name: "tests", path: "tests", folder: true },
+  { name: "webhooks.rs", path: "tests/webhooks.rs", depth: 1 },
+];
+const OLDER = [{ title: "Deliveries to a slow endpoint fail again.", ago: "2h ago", turns: 1 }, { title: "Webhooks time out in staging. Find out why and fix it.", ago: "18d ago", turns: 1 }];
+
+function highlight(text) {
+  return esc(text).replace(/("(?:[^"\\]|\\.)*")|\b(use|pub|struct|impl|fn|if|return|match|self|crate)\b|\b([A-Z]\w*|u16|u32|u64|bool|str)\b|\b(\d[\d.=]*)\b|\b([a-z_]\w*)(?=[(!])/g, (m, s, kw, ty, nu, fn) =>
+    s ? `<span class="st">${s}</span>` : kw ? `<span class="kw">${kw}</span>` : ty ? `<span class="ty">${ty}</span>` : nu ? `<span class="nu">${nu}</span>` : `<span class="fn">${fn}</span>`);
+}
+function row(n, text, tint) {
+  return `<div class="row flex w-max min-w-full gap-4 border-l-2 ${tint}"><span class="w-6 shrink-0 text-right text-dim select-none">${n}</span><span class="whitespace-pre text-ink">${highlight(text)}</span></div>`;
+}
+function render({ selected = null, review = false } = {}) {
+  $("code").innerHTML = source.map((t, i) => {
+    const n = i + 1;
+    if (review && n === CHANGED_LINE + 1) return row(n, t, "border-diff-remove bg-diff-remove/12") + row("+", FIXED, "border-diff-add bg-diff-add/12");
+    const sel = selected && n >= selected[0] && n <= selected[1];
+    return row(n, t, sel ? "border-transparent bg-hover" : "border-transparent");
+  }).join("");
+}
+function doing(text) {
+  $("doing").style.display = text ? "" : "none";
+  $("doing-text").textContent = text || "";
+}
+function show(view) {
+  const file = view === "file";
+  $("file").style.display = file ? "" : "none";
+  $("strip-slot").style.display = file ? "none" : "";
+  $("sess-body").style.display = file ? "none" : "";
+  shell({ activeFile: file ? PATH : null });
+}
+const setDock = (o) => { $("dock-slot").innerHTML = dock(o); };
+function feed(html) {
+  $("log").insertAdjacentHTML("beforeend", html);
+  $("scroll").scrollTop = $("scroll").scrollHeight;
+}
+function replace(id, html) {
+  $(id).outerHTML = html;
+  $(id).querySelector(".enter")?.classList.remove("enter");
+}
+const fence = `<pre class="overflow-x-auto whitespace-pre rounded border border-hairline bg-canvas p-3 font-mono text-code leading-relaxed font-normal">${selected.map(highlight).join("\n")}</pre>`;
+const question = () => said(`\`${PATH}\` lines ${SELECT[0]}–${SELECT[1]}:\n\n${QUESTION}`).replace("</p>", `</p>${fence}`);
+const readRow = (done) => `<div id="read-row">${call({ kind: "read", detail: PATH, took: done ? "0.2s" : undefined, status: done ? undefined : "running" })}</div>`;
+const DIFF = ["@@ -20 +20 @@", `- ${source[CHANGED_LINE]}`, `+ ${FIXED}`];
+const editRow = (status) => `<div id="edit-row">${call({ kind: "edit", verb: "Edit", detail: PATH, status, took: status ? undefined : "4.6s", body: editBody(PATH, DIFF) })}</div>`;
+const REPLY = "It did. A `410` fell through to the last arm, and that arm stopped only on `400` and `401`. The arm now stops on `410` too, so Koda never retries a gone endpoint.";
+const session = (phase) => [{ title: TITLE, ago: "just now", turns: 1, phase, selected: true }, ...OLDER];
+
+async function play(id) {
+  chapter("Open a file in the editor");
+  mountShell(CENTRE, { tree: TREE, sessions: OLDER, more: 0, activeFile: PATH });
+  $("pointer").style.left = "640px"; $("pointer").style.top = "820px";
+  $("card-glyph").outerHTML = icon("size-[15px] shrink-0 text-accent-indigo-bright", GLYPH.diff);
+  show("file");
+  doing(null);
+  setDock();
+  $("body").scrollTop = 0;
+  render();
+  await sleep(1200); alive(id);
+
+  chapter("Select the code in question");
+  const line = (n) => $("code").children[n - 1];
+  await pointTo(line(SELECT[0]), id, 0.08, 0.5);
+  for (let end = SELECT[0]; end <= SELECT[1]; end++) {
+    render({ selected: [SELECT[0], end] });
+    await pointTo(line(end), id, end === SELECT[1] ? 0.55 : 0.3, 0.5);
+  }
+  const ask = $("ask");
+  ask.style.left = "88px";
+  ask.style.top = `${8 + SELECT[1] * 20}px`;
+  ask.style.display = "";
+  ask.classList.add("enter");
+  await sleep(700); alive(id);
+
+  chapter("Ask the agent about the selection");
+  await click(ask, id);
+  ask.style.display = "none";
+  render();
+  setDock({ text: QUOTED, caret: true });
+  await sleep(600); alive(id);
+  let typed = QUOTED;
+  for (const ch of QUESTION) {
+    typed += ch; setDock({ text: typed, caret: true }); await sleep(30 + Math.random() * 30); alive(id);
+  }
+  await sleep(300); alive(id);
+  await click($("send"), id);
+
+  chapter("The agent reads the file");
+  show("stream");
+  $("strip-slot").innerHTML = sessionStrip({ title: TITLE, turn: 0, session: 0 });
+  setDock({ title: TITLE, working: true, activity: "Thinking", elapsed: "1s" });
+  shell({ phase: "Working", doing: TITLE, sessions: session("Working"), context: { used: 3100 } });
+  feed(question());
+  await sleep(1000); alive(id);
+  setDock({ title: TITLE, working: true, activity: `Read ${PATH}`, elapsed: "2s" });
+  feed(`<div data-calls="1" class="flex flex-col py-1">${readRow(false)}</div>`);
+  await sleep(900); alive(id);
+  replace("read-row", readRow(true));
+  $("strip-slot").innerHTML = sessionStrip({ title: TITLE, turn: 5800, session: 5800, hit: "54.0%" });
+  shell({ toolCalls: 1, context: { used: 5800 } });
+  await sleep(600); alive(id);
+  $("log").lastElementChild.insertAdjacentHTML("beforeend", editRow("approval"));
+  setDock({ title: TITLE, working: true, activity: "Waiting for your approval", elapsed: "6s" });
+  shell({ phase: "Needs approval", toolCalls: 2, sessions: session("Needs approval") });
+  await sleep(900); alive(id);
+
+  chapter("Review the change in place");
+  await click($("tab-retry"), id);
+  show("file");
+  doing("Agent is editing this file");
+  render({ review: true });
+  $("body").scrollTop = (CHANGED_LINE - 6) * 20;
+  $("said").style.display = "";
+  $("card").style.display = "";
+  $("card").classList.add("enter");
+  $("tab-review").style.display = "";
+  $("tab-close").style.display = "none";
+  await sleep(2600); alive(id);
+  await click($("accept"), id);
+
+  chapter("Accepted, and the answer");
+  $("card").style.display = "none";
+  $("said").style.display = "none";
+  $("tab-review").style.display = "none";
+  $("tab-close").style.display = "";
+  doing(null);
+  show("stream");
+  replace("edit-row", editRow());
+  shell({ phase: "Working", sessions: session("Working"), changes: [{ path: PATH, state: "M", added: 1, removed: 1 }], graph: [{ path: PATH, state: "M", definitions: 4, uses: 2, usedBy: 1 }] });
+  setDock({ title: TITLE, working: true, activity: "Writing", elapsed: "12s" });
+  await sleep(1200); alive(id);
+  feed(answer(REPLY));
+  feed(footer("14s", { calls: 2, read: 1, edited: 1, added: 1, removed: 1 }));
+  setDock({ title: TITLE });
+  $("strip-slot").innerHTML = sessionStrip({ title: TITLE, turn: 7200, session: 7200, hit: "61.0%" });
+  shell({ phase: "Finished", sessions: session("Finished"), context: { used: 7200 } });
+  await sleep(5000); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

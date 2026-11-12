@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Plan Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const TITLE = "Send failed deliveries to a dead-letter queue";
+const PROMPT = "Send deliveries that fail their last retry to a dead-letter queue. Plan it first.";
+const FILE = "send-failed-deliveries-to-a-dead-letter-queue.json";
+const BRANCH = "koda/goal/send-failed-deliveries-to-a-dead-letter-queue";
+const START = `Carry out the accepted plan below as a goal. You are in a separate git checkout of the project on branch \`${BRANCH}\`, separate from the user's own working copy, and nobody is waiting on each step: keep going until the plan is done.`;
+const NOTE = "Keep a dead letter for 14 days, and test that a replay removes it.";
+const SUMMARY = "A delivery that fails its last retry is kept, so you can read it and replay it later.";
+const VERIFY = "`cargo test webhooks` passes, and a replayed dead letter leaves the queue.";
+const FIRST = [
+  ["s1", "Add a `DeadLetter` store", "It keeps a failed delivery with its last error.", ["src/webhooks/dead_letter.rs"]],
+  ["s2", "Move a delivery there after its last retry", "`retry.rs` stops at `max_attempts` and hands the delivery over.", ["src/webhooks/retry.rs"]],
+  ["s3", "Replay a dead letter", "`just replay <delivery-id>` also reads the queue.", ["src/webhooks/replay.rs"]],
+];
+const SECOND = [
+  FIRST[0],
+  ["s2", "Move a delivery there after its last retry, and drop it after 14 days", "`retry.rs` hands the delivery over. A daily sweep removes dead letters older than 14 days.", ["src/webhooks/retry.rs", "src/webhooks/dead_letter.rs"], "changed"],
+  FIRST[2],
+  ["s4", "Test that a replay removes the dead letter", "A test pins the replay path end to end.", ["tests/webhooks.rs"], "new"],
+];
+const OLDER = [{ title: "Webhooks time out in staging. Find out why and fix it.", ago: "20d ago", turns: 1 }, { title: "Rotate the webhook secret", ago: "24d ago", turns: 3 }];
+const q = (sel) => document.querySelector(sel);
+const GROUP = '<div class="flex flex-col py-1">';
+function add(html) {
+  const last = $("log").lastElementChild;
+  if (html.startsWith(GROUP) && last?.dataset.calls) last.insertAdjacentHTML("beforeend", html.slice(GROUP.length, -6));
+  else $("log").insertAdjacentHTML("beforeend", html.startsWith(GROUP) ? html.replace(GROUP, '<div data-calls="1" class="flex flex-col py-1">') : html);
+  $("scroll").scrollTop = $("scroll").scrollHeight;
+}
+const lastRow = () => $("log").querySelector("[data-calls]:last-of-type")?.lastElementChild;
+function finishRow(spec) {
+  const groups = $("log").querySelectorAll("[data-calls]"), rows = groups[groups.length - 1];
+  rows.lastElementChild.outerHTML = call(spec);
+  rows.lastElementChild.classList.remove("enter");
+}
+const MARK = { new: "border-accent-emerald/35 bg-accent-emerald/12 text-accent-emerald-bright", changed: "border-accent-amber/35 bg-accent-amber/12 text-accent-amber-bright" };
+// PlanCard (stream/gates.rs) as PlanGate draws it while the agent waits.
+function planCard(steps, { round = "", note = "", budget = "" } = {}) {
+  return `<div id="plan" class="enter flex flex-col gap-3 rounded-lg border border-accent-indigo/30 bg-panel p-3.5" role="group" aria-label="Plan proposed">
+    <div class="flex items-center gap-2"><span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase border-accent-indigo/35 bg-accent-indigo/12 text-accent-indigo-bright">Plan proposed</span><span class="font-mono text-app-2xs text-dim">Agent paused</span><span class="ml-auto font-mono text-app-2xs text-dim">${FILE}</span></div>
+    ${round ? `<p class="text-app-xs text-accent-indigo-bright">This round: ${round}</p>` : ""}
+    <div class="flex flex-col gap-2"><p class="text-app-sm font-medium text-ink">${TITLE}</p>${markdown(SUMMARY)}</div>
+    <ol class="flex flex-col gap-2">${steps.map(([id, what, why, files, mark], i) => `<li class="flex flex-col gap-1 rounded-lg border border-hairline bg-canvas px-3 py-2"><div class="flex items-center gap-2"><span class="flex size-5 shrink-0 items-center justify-center rounded border border-hairline font-mono text-app-2xs text-dim">${i + 1}</span><div class="min-w-0 grow text-app-sm text-ink">${markdown(what)}</div>${mark ? `<span class="inline-flex shrink-0 items-center rounded border px-1.5 font-mono text-app-2xs uppercase ${MARK[mark]}" aria-label="Step ${id} is ${mark}">${mark}</span>` : ""}<code class="ml-auto shrink-0 whitespace-nowrap font-mono text-app-2xs text-dim">${id}</code></div>${markdown(why)}<p class="flex flex-wrap items-center gap-x-1.5 font-mono text-app-2xs text-dim">${files.map((f) => `<code class="rounded bg-panel px-1 py-0.5 text-accent-amber-bright">${f}</code>`).join("")}</p></li>`).join("")}</ol>
+    <div class="flex flex-col gap-1"><span class="font-mono text-app-2xs tracking-[0.06em] uppercase text-dim">Verification</span>${markdown(VERIFY)}</div>
+    <p class="text-app-2xs text-dim">Nothing has been written. Accepting saves the plan to the project and starts the work.</p>
+    <div id="note" aria-label="What to change" class="rounded-lg border border-hairline bg-canvas px-3 py-2 text-app-xs ${note ? "text-ink" : "text-dim"}">${note ? `${esc(note)}<span class="caret"></span>` : "What to change — required to ask for a revision…"}</div>
+    <div class="flex items-center gap-2 border-t border-hairline-soft pt-3">
+      <button id="accept" type="button" aria-label="Accept plan" class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-emerald/40 bg-accent-emerald/10 px-2.5 py-1 text-app-xs font-medium text-accent-emerald-bright transition hover:bg-accent-emerald/20">${icon("size-3.5", GLYPH.check)}Accept</button>
+      <label class="flex cursor-pointer items-center gap-1.5 text-app-xs text-muted" title="Merge the finished work into the project; stops and waits for you on any conflict"><input type="checkbox" class="koda-check">Merge when done</label>
+      <label class="flex items-center gap-1 text-app-xs text-muted" title="The most the goal may spend; leave it empty for no limit">Budget $<span id="budget" aria-label="Goal budget in dollars" class="w-20 rounded border border-hairline bg-canvas px-2 py-0.5 text-right font-mono text-app-xs ${budget ? "text-ink" : "text-dim"}">${budget || "no limit"}</span></label>
+      <button id="revise" type="button" aria-label="Ask for a revision" ${note ? "" : "disabled"} class="flex cursor-pointer items-center gap-1.5 rounded border border-accent-indigo/40 bg-accent-indigo/12 px-2.5 py-1 text-app-xs font-medium text-accent-indigo-bright transition hover:bg-accent-indigo/20 disabled:cursor-not-allowed disabled:opacity-60">${icon("size-3.5", GLYPH.arrowUp)}Ask for a revision</button>
+      <button type="button" aria-label="Reject plan" class="ml-auto flex cursor-pointer items-center gap-1.5 rounded border border-accent-rose/40 bg-accent-rose/10 px-2.5 py-1 text-app-xs font-medium text-accent-rose transition hover:bg-accent-rose/20">${icon("size-3.5", GLYPH.close)}Reject</button>
+    </div></div>`;
+}
+const setPlan = (html) => { $("plan")?.remove(); if (html) add(html); };
+// GoalBar (goal_bar.rs) for a goal working in its own copy.
+function goalBar(tone, said, spend, actions = "") {
+  $("goal-slot").innerHTML = `<div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-hairline bg-panel px-3 py-1.5 font-mono text-app-2xs" aria-label="Goal"><span class="shrink-0 rounded border px-1.5 uppercase ${TONES.chip[tone]}">Goal</span><span class="font-medium ${TONES.text[tone]}">${said}</span><span class="text-dim">·</span><span class="truncate text-muted" title="${BRANCH}">${BRANCH}</span><span class="text-dim">·</span><span class="text-muted">${spend}</span><span class="grow"></span><div class="flex flex-wrap items-center gap-2 font-mono text-app-2xs">${actions}</div></div>`;
+}
+const withTitle = (html, title) => html.replace("<button ", `<button title="${title}" `);
+
+async function play(id) {
+  const p = $("pointer"); p.style.left = "640px"; p.style.top = "820px";
+  mountShell(sessionColumn(), { sessions: OLDER, more: 0 });
+  chapter("Asking for a plan");
+  const planning = { title: PROMPT, ago: "just now", turns: 1, phase: "Working", selected: true };
+  shell({ phase: "Working", doing: PROMPT, sessions: [planning, ...OLDER], context: { used: 8200 } });
+  $("strip-slot").innerHTML = sessionStrip({ title: PROMPT, turn: 0, session: 0 });
+  $("dock-slot").innerHTML = dock({ title: PROMPT, working: true, activity: "Thinking", elapsed: "1s" });
+  add(said(PROMPT));
+  await sleep(900); alive(id);
+  add(calls([call({ kind: "plan", verb: "Switched to plan mode", took: "0.1s" })]));
+  shell({ plan: true, toolCalls: 1 });
+  await sleep(700); alive(id);
+  let n = 1;
+  for (const spec of [{ kind: "graph", detail: "retry, delivery, max_attempts", took: "0.2s" }, { kind: "read", detail: "src/webhooks/retry.rs", took: "0.1s" }, { kind: "read", detail: "src/webhooks/replay.rs", took: "0.1s" }]) {
+    add(calls([call(spec)])); shell({ toolCalls: ++n, context: { used: 8200 + n * 3100 } });
+    await sleep(750); alive(id);
+  }
+  add(calls([call({ kind: "plan", verb: "Proposed a plan:", detail: TITLE, status: "approval" })]));
+  shell({ phase: "Needs approval", toolCalls: ++n, sessions: [{ ...planning, phase: "Needs approval" }, ...OLDER] });
+  $("dock-slot").innerHTML = dock({ title: PROMPT, working: true, activity: "Waiting for your approval", elapsed: "9s" });
+  chapter("The plan gate");
+  setPlan(planCard(FIRST));
+  await sleep(2800); alive(id);
+  await pointTo($("note"), id, 0.2);
+  let typed = "";
+  for (const ch of NOTE) { typed += ch; setPlan(planCard(FIRST, { note: typed })); $("scroll").scrollTop = $("scroll").scrollHeight; await sleep(24); alive(id); }
+  await sleep(400); alive(id);
+  await click($("revise"), id);
+  chapter("Asking for a revision");
+  setPlan(null);
+  finishRow({ kind: "plan", verb: "Proposed a plan:", detail: TITLE, took: "4.1s" });
+  shell({ phase: "Working", sessions: [planning, ...OLDER] });
+  $("dock-slot").innerHTML = dock({ title: PROMPT, working: true, activity: "Thinking", elapsed: "14s" });
+  await sleep(600); alive(id);
+  add(calls([call({ kind: "read", detail: "tests/webhooks.rs", took: "0.1s" })])); shell({ toolCalls: ++n, context: { used: 21500 } });
+  await sleep(900); alive(id);
+  add(calls([call({ kind: "plan", verb: "Proposed a plan:", detail: TITLE, status: "approval" })]));
+  shell({ phase: "Needs approval", toolCalls: ++n, sessions: [{ ...planning, phase: "Needs approval" }, ...OLDER] });
+  chapter("Revised plan, with a budget");
+  setPlan(planCard(SECOND, { round: "1 step added, 1 step changed" }));
+  await sleep(2600); alive(id);
+  await pointTo($("budget"), id);
+  for (const b of ["4", "4.0", "4.00"]) { setPlan(planCard(SECOND, { round: "1 step added, 1 step changed", budget: b })); await sleep(140); alive(id); }
+  await sleep(700); alive(id);
+  await click($("accept"), id);
+  setPlan(null);
+  finishRow({ kind: "plan", verb: "Proposed a plan:", detail: TITLE, took: "3.2s" });
+  const goalRow = { title: TITLE, ago: "just now", phase: "Working", goal: true, spend: "$0.00 of $4.00" };
+  shell({ phase: "Finished", plan: false, autonomous: [[1, "Running", "emerald", true]], sessions: [{ ...planning, phase: "Finished" }, goalRow, ...OLDER] });
+  $("dock-slot").innerHTML = dock({ title: PROMPT });
+  add(footer("38s", { calls: n, read: 3 }));
+  await sleep(1600); alive(id);
+
+  chapter("Working in its own copy");
+  await click(q(`[data-session="${TITLE}"]`), id);
+  $("log").innerHTML = "";
+  $("strip-slot").innerHTML = sessionStrip({ title: TITLE, turn: 0, session: 0 }) + '<div id="goal-slot"></div>';
+  let cents = 0, calls_made = 0;
+  const spent = () => `$${(cents / 100).toFixed(2)} of $4.00`;
+  const bar = () => goalBar("cyan", "Working in its own copy", spent(), actionButton("Pause", "secondary"));
+  const tick = (row) => { calls_made++; cents += 27; shell({ toolCalls: calls_made, context: { used: 14000 + calls_made * 2600 }, sessions: [{ ...planning, phase: "Finished", selected: false }, { ...goalRow, spend: spent(), selected: true }, ...OLDER] }); bar(); add(calls([call(row)])); };
+  shell({ phase: "Working", doing: TITLE, changes: [], toolCalls: 0, context: { used: 14000 }, sessions: [{ ...planning, phase: "Finished", selected: false }, { ...goalRow, selected: true }, ...OLDER] });
+  bar();
+  $("dock-slot").innerHTML = dock({ title: TITLE, working: true, activity: "Thinking", elapsed: "2s" });
+  add(said(START));
+  await sleep(1100); alive(id);
+  const work = [
+    { kind: "plan", verb: "Updated the plan:", detail: "s1 in progress", took: "0.1s" },
+    { kind: "edit", verb: "Write", detail: "src/webhooks/dead_letter.rs", took: "0.1s", body: editBody("src/webhooks/dead_letter.rs", ["+pub struct DeadLetter {", "+    pub delivery: Delivery,", "+    pub last_error: String,", "+}"]) },
+    { kind: "plan", verb: "Updated the plan:", detail: "s1 done, s2 in progress", took: "0.1s" },
+    { kind: "edit", verb: "Edit", detail: "src/webhooks/retry.rs", took: "0.1s", body: editBody("src/webhooks/retry.rs", ["@@ -44,6 +44,9 @@", "+    if attempt >= max_attempts {", "+        return dead_letter::keep(delivery, error);", "+    }"]) },
+    { kind: "edit", verb: "Edit", detail: "src/webhooks/replay.rs", took: "0.1s", body: editBody("src/webhooks/replay.rs", ["@@ -9,4 +9,5 @@", "+    let delivery = dead_letter::take(id)?.or(stored)?;"]) },
+    { kind: "edit", verb: "Edit", detail: "tests/webhooks.rs", took: "0.1s", body: editBody("tests/webhooks.rs", ["+#[test]", "+fn replay_removes_the_dead_letter() {"]) },
+  ];
+  for (const row of work) { tick(row); await sleep(850); alive(id); }
+  shell({ changes: [{ path: "src/webhooks/dead_letter.rs", state: "A", added: 38, removed: 0 }, { path: "src/webhooks/retry.rs", state: "M", added: 9, removed: 2 }, { path: "src/webhooks/replay.rs", state: "M", added: 3, removed: 1 }, { path: "tests/webhooks.rs", state: "M", added: 24, removed: 0 }] });
+
+  chapter("Polling a long command");
+  tick({ kind: "shell", detail: "cargo test webhooks", status: "running" });
+  $("dock-slot").innerHTML = dock({ title: TITLE, working: true, activity: "$ cargo test webhooks", elapsed: "1m 12s" });
+  await sleep(1300); alive(id);
+  finishRow({ kind: "shell", detail: "cargo test webhooks", took: "10.0s", body: output(["   Compiling acme-api v0.4.0", "Wall time: 10.0000 seconds", "Process running with session ID 3"]), open: true });
+  await sleep(1000); alive(id);
+  tick({ kind: "poll", verb: "Checked on a running command", status: "running" });
+  await sleep(1500); alive(id);
+  finishRow({ kind: "poll", verb: "Checked on a running command", took: "14.2s", body: output(["test result: ok. 17 passed; 0 failed"]), open: true });
+  await sleep(900); alive(id);
+  tick({ kind: "shell", detail: "git commit -am 'Send failed deliveries to a dead-letter queue'", took: "0.3s" });
+  await sleep(700); alive(id);
+  tick({ kind: "goal", verb: "Marked the goal complete", took: "0.1s" });
+  await sleep(700); alive(id);
+
+  chapter("Done: merge or discard");
+  add(answer("All four steps are done and committed. A delivery that fails its last retry now goes to the dead-letter queue, and the queue drops entries after 14 days. `tests/webhooks.rs` pins that a replay removes the dead letter."));
+  add(footer("2m 41s", { calls: calls_made, edited: 4, added: 74, removed: 3 }));
+  shell({ phase: "Finished", autonomous: [[1, "Attention required", "rose", false]], sessions: [{ ...planning, phase: "Finished", selected: false }, { ...goalRow, phase: "Finished", spend: spent(), selected: true }, ...OLDER] });
+  $("strip-slot").firstElementChild.outerHTML = sessionStrip({ title: TITLE, turn: 61200, session: 61200, hit: "72.5%" });
+  $("dock-slot").innerHTML = dock({ title: TITLE });
+  const done = (merge) => goalBar("emerald", "Done, waiting for you to merge or discard", spent(), withTitle(actionButton(merge, "primary", null, "merge"), "Add the goal's changes to the project as one commit") + withTitle(actionButton("Discard", "danger", null, "discard"), "Delete the goal's copy and its work"));
+  done("Merge");
+  await sleep(2000); alive(id);
+  await click(q('[data-act="merge"]'), id);
+  done("Working…"); q('[data-act="merge"]').disabled = true; q('[data-act="discard"]').disabled = true;
+  await sleep(1100); alive(id);
+  chapter("Merged as one commit");
+  shell({ autonomous: null });
+  goalBar("emerald", "Merged", spent());
+  await sleep(4200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Graph Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+$("ptr").outerHTML = POINTER;
+const GRAPH_SCREEN = `<div class="absolute inset-0 z-50 flex flex-col bg-canvas outline-none" data-koda-graph="1" data-inner="0">
+    <header class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4">
+      <div class="flex min-w-0 items-center gap-2">
+        <span id="h-glyph"></span>
+        <h1 class="shrink-0 font-mono text-app-xs font-bold text-ink">Code graph</h1>
+        <span id="caption" class="truncate text-app-xs text-muted"></span>
+      </div>
+      <div class="flex shrink-0 items-center gap-1.5">
+        <div id="views" class="flex gap-0.5 rounded-lg border border-hairline bg-canvas p-0.5" role="radiogroup"></div>
+        <button id="search" type="button" class="flex w-72 cursor-text items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 py-1 text-app-2xs text-dim transition hover:border-command/50"><span id="search-glyph"></span><span class="grow text-left">Search symbols and files</span><kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">⌘K</kbd></button>
+        <button id="code-toggle" type="button" title="Show or hide the code (c)" aria-pressed="true" class="cursor-pointer rounded-md border border-command/40 bg-command/10 p-1.5 text-command transition"></button>
+        <button type="button" class="flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition border-hairline bg-subtle text-ink/80 hover:bg-hover hover:text-ink"><span id="close-glyph"></span>Close</button>
+        <button type="button" aria-label="Restore the screen" title="Restore (or double-click the title bar)" class="flex size-6 cursor-pointer items-center justify-center rounded text-muted transition hover:bg-hover hover:text-ink"><span id="restore-glyph"></span></button>
+      </div>
+    </header>
+    <div class="relative flex min-h-0 grow overflow-hidden">
+      <aside id="tables" class="flex w-64 shrink-0 flex-col border-r border-hairline bg-panel" style="display:none"></aside>
+      <section class="relative flex min-w-0 grow flex-col overflow-hidden">
+        <div id="toolbar" class="relative z-20 shrink-0" style="display:none"></div>
+        <div id="canvas-box" class="koda-graph-canvas relative min-h-0 min-w-0 grow cursor-grab overflow-hidden">
+          <svg class="absolute inset-0 size-full select-none font-mono"><defs><linearGradient id="koda-graph-focus" x1="0" x2="1"><stop offset="0" stop-color="var(--koda-accent-indigo-bright)"/><stop offset="1" stop-color="var(--koda-accent-purple-bright)"/></linearGradient><marker id="koda-graph-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--koda-muted)"/></marker></defs><g id="cam" class="koda-glide"><g id="captions"></g><g id="edges"></g><g id="particles"></g><g id="labels"></g><g id="cards"></g></g></svg>
+          <div id="hud"></div>
+          <div class="absolute right-3 bottom-3 flex flex-col overflow-hidden rounded-md border border-hairline bg-panel shadow-lg shadow-black/30">
+            <button type="button" title="Zoom in" class="flex size-8 cursor-pointer items-center justify-center font-mono text-app-sm text-muted transition hover:bg-hover hover:text-ink">+</button>
+            <button type="button" title="Zoom out" class="flex size-8 cursor-pointer items-center justify-center border-t border-hairline font-mono text-app-sm text-muted transition hover:bg-hover hover:text-ink">−</button>
+            <button type="button" title="Fit to screen" class="flex h-8 cursor-pointer items-center justify-center border-t border-hairline px-1 font-mono text-app-3xs text-muted uppercase transition hover:bg-hover hover:text-ink">Fit</button>
+          </div>
+          <div id="zoom" class="pointer-events-none absolute bottom-3 left-3 rounded bg-panel/80 px-2 py-1 font-mono text-app-3xs text-dim"></div>
+        </div>
+        <div id="palette"></div>
+      </section>
+      <aside id="drawer" class="flex w-[26rem] shrink-0 flex-col overflow-hidden border-l border-hairline bg-panel" style="display:none"></aside>
+      <aside id="table-panel" class="flex w-90 shrink-0 flex-col overflow-hidden border-l border-hairline bg-panel" style="display:none"></aside>
+    </div>
+  </div>`;
+function openGraph() {
+  openScreen("graph", GRAPH_SCREEN, { wide: true, maximized: true });
+  $("h-glyph").outerHTML = icon("size-4 shrink-0 text-accent-indigo-bright", GLYPH.hub);
+  $("search-glyph").outerHTML = icon("size-3.5", GLYPH.search);
+  $("close-glyph").outerHTML = icon("size-3.5 shrink-0", GLYPH.close);
+  $("restore-glyph").outerHTML = icon("size-3.5", GLYPH.restore);
+  $("code-toggle").innerHTML = icon("size-3.5", GLYPH.code);
+}
+// The `/` command chips over the prompt box (stream/dock.rs command_list).
+const commandChips = (name, description, keys) => `<div class="absolute right-0 bottom-full left-0 z-40 mb-2 flex flex-col gap-2 rounded-lg border border-hairline bg-elevated p-2 elevated-shadow enter"><div class="koda-no-scrollbar flex gap-1.5 overflow-x-auto" role="listbox" aria-label="Commands" aria-orientation="horizontal"><button type="button" role="option" aria-selected="true" class="shrink-0 cursor-pointer rounded-full border px-2.5 py-1 font-mono text-app-xs transition border-command bg-command text-canvas">${name}</button></div><div class="flex min-w-0 items-center gap-2.5 px-1"><span class="shrink-0 font-mono text-app-xs text-ink">${name}</span><span class="min-w-0 grow truncate text-app-2xs text-muted">${description}</span><span class="shrink-0"><kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">${keys}</kbd></span></div></div>`;
+const ASKED = "Deliveries to a slow endpoint fail again.";
+function mountSession() {
+  mountShell(sessionColumn(sessionStrip({ title: ASKED, turn: 24100, session: 24100, hit: "68.2%" })), {
+    phase: "Finished", toolCalls: 5, doing: ASKED,
+    sessions: [{ title: ASKED, ago: "2m ago", turns: 1, phase: "Finished", selected: true }, { title: "Webhooks time out in staging. Find out why and fix it.", ago: "18d ago", turns: 1 }, { title: "Rotate the webhook secret", ago: "22d ago", turns: 3 }],
+    changes: [{ path: "src/webhooks/retry.rs", state: "M", added: 1, removed: 1 }],
+    graph: [{ path: "src/webhooks/retry.rs", state: "M", definitions: 4, uses: 2, usedBy: 1 }],
+    context: { used: 24100 },
+  });
+  $("log").innerHTML = said(ASKED) + calls([
+    call({ kind: "read", detail: "src/webhooks/retry.rs", took: "0.1s" }),
+    call({ kind: "edit", verb: "Edit", detail: "src/webhooks/retry.rs", took: "0.1s" }),
+    call({ kind: "shell", detail: "cargo test webhooks", took: "7.9s" }),
+  ]) + answer("Retries now use `deliver::client()`, so they wait 10 s like first deliveries. The webhook tests pass.") + footer("34s", { calls: 3, read: 1, edited: 1, added: 1, removed: 1 });
+  $("dock-slot").innerHTML = dock({ title: ASKED });
+}
+
+const VIEWS = ["Symbol", "Flow", "Files", "Map", "Schema"];
+const FLOAT = "absolute z-10 rounded-xl border border-hairline bg-panel/80 backdrop-blur-md elevated-shadow";
+const CHIP = "inline-flex items-center gap-1.5 rounded-full border border-hairline px-2 py-0.5 text-app-2xs text-muted";
+const KINDS = ["method", "function", "class", "interface", "trait", "protocol", "struct", "union", "enum", "type_alias", "file", "module"];
+const kindClass = (kind) => (KINDS.includes(kind) ? `koda-kind-${kind}` : "koda-kind-other");
+const clipped = (text, n) => ([...text].length <= n ? text : `${[...text].slice(0, n - 1).join("")}…`);
+const pill = (kind) => `<span class="${kindClass(kind)} rounded-full px-2 py-px text-app-3xs font-semibold tracking-wide uppercase" style="color: var(--koda-kind); background: color-mix(in srgb, var(--koda-kind) 14%, transparent)">${kind}</span>`;
+
+const MODULES = [
+  { id: "src/http", symbols: 38, files: ["src/http/server.rs", "src/http/router.rs", "src/http/middleware.rs"], dependents: 2, layer: 2 },
+  { id: "src/cli", symbols: 14, files: ["src/cli/main.rs", "src/cli/replay.rs"], dependents: 0, layer: 2 },
+  { id: "src/webhooks", symbols: 27, files: ["src/webhooks/deliver.rs", "src/webhooks/retry.rs", "src/webhooks/signing.rs"], dependents: 4, layer: 1 },
+  { id: "src/parser", symbols: 22, files: ["src/parser/chunk.rs", "src/parser/header.rs", "src/parser/body.rs"], dependents: 3, layer: 0 },
+  { id: "src/db", symbols: 19, files: ["src/db/pool.rs", "src/db/users.rs", "src/db/deliveries.rs"], dependents: 6, layer: 0 },
+];
+const MODULE_LINKS = [
+  ["src/http", "src/webhooks", 9, "calls 7 · imports 2"], ["src/http", "src/db", 4, "calls 3 · imports 1"], ["src/cli", "src/webhooks", 4, "calls 3 · imports 1"],
+  ["src/cli", "src/db", 3, "calls 2 · imports 1"], ["src/webhooks", "src/parser", 5, "calls 4 · imports 1"], ["src/webhooks", "src/db", 6, "calls 5 · imports 1"],
+];
+const CHANGED = ["src/webhooks/retry.rs"];
+const FILES = MODULES.reduce((n, m) => n + m.files.length, 0), SYMBOLS = MODULES.reduce((n, m) => n + m.symbols, 0);
+
+const node = (id, name, kind, file, line, end, qualified) => ({ id, name, kind, file, line, end, qualified: qualified || name });
+const N = {
+  route: node("route", "route", "function", "src/http/router.rs", 22, 40, "http::router::route"),
+  send_webhook: node("send_webhook", "send_webhook", "function", "src/webhooks/deliver.rs", 31, 43, "webhooks::deliver::send_webhook"),
+  retries_on_503: node("retries_on_503", "retries_on_503", "function", "tests/webhooks.rs", 12, 28, "webhooks::retries_on_503"),
+  stops_on_410: node("stops_on_410", "stops_on_410", "function", "tests/webhooks.rs", 30, 44, "webhooks::stops_on_410"),
+  sign_payload: node("sign_payload", "sign_payload", "function", "src/webhooks/signing.rs", 8, 15, "webhooks::signing::sign_payload"),
+  should_retry: node("should_retry", "should_retry", "function", "src/webhooks/retry.rs", 14, 22, "webhooks::retry::should_retry"),
+  record_delivery: node("record_delivery", "record_delivery", "function", "src/db/deliveries.rs", 12, 30, "db::deliveries::record_delivery"),
+  delay: node("delay", "delay", "method", "src/webhooks/retry.rs", 9, 11, "retry::Backoff::delay"),
+  exhausted: node("exhausted", "exhausted", "method", "src/webhooks/retry.rs", 5, 7, "retry::Backoff::exhausted"),
+  never_on_410: node("never_on_410", "never_on_410", "function", "src/webhooks/retry.rs", 48, 52, "retry::tests::never_on_410"),
+};
+const SYMBOL = {
+  send_webhook: {
+    node: N.send_webhook,
+    callers: [[N.route, [24]], [N.retries_on_503, [18]], [N.stops_on_410, [36]]],
+    callees: [[N.sign_payload, [33]], [N.should_retry, [37]], [N.record_delivery, [38]], [N.delay, [40]]],
+    tests: 2, hops: 1, blast: { direct: 3, within: 6, files: 3, test_files: 1 },
+    source: ["pub async fn send_webhook(hook: &Webhook, event: &Event) -> Result<Delivery> {", "    let body = serde_json::to_vec(event)?;", "    let signature = sign_payload(&hook.secret, &body);", "    let mut attempt = 0;", "    loop {", "        let reply = post(&hook.url, &body, &signature).await?;", "        if !should_retry(reply.status, attempt, &hook.backoff) {", "            return record_delivery(hook, &reply).await;", "        }", "        sleep(hook.backoff.delay(attempt)).await;", "        attempt += 1;", "    }", "}"],
+  },
+  should_retry: {
+    node: N.should_retry,
+    callers: [[N.send_webhook, [37]], [N.never_on_410, [50]]],
+    callees: [[N.exhausted, [15]]],
+    tests: 3, hops: 2, blast: { direct: 2, within: 7, files: 4, test_files: 1 },
+    source: ["pub fn should_retry(status: u16, attempt: u32, backoff: &Backoff) -> bool {", "    if backoff.exhausted(attempt) {", "        return false;", "    }", "    match status {", "        408 | 429 | 500..=599 => true,", "        _ => !matches!(status, 400 | 401 | 410),", "    }", "}"],
+  },
+};
+const ROUTE_SOURCE = ["pub async fn route(req: Request, state: &State) -> Response {", "    let hook = state.webhooks.find(req.param(\"id\"))?;", "    match send_webhook(&hook, &req.event()).await {", "        Ok(delivery) => Response::accepted(delivery),", "        Err(error) => Response::bad_gateway(error),", "    }", "}"];
+const FLOW = [[N.route, null], [N.send_webhook, 24], [N.should_retry, 37]];
+const FLOW_SOURCE = { route: [22, ROUTE_SOURCE], send_webhook: [31, SYMBOL.send_webhook.source], should_retry: [14, SYMBOL.should_retry.source] };
+
+const TABLES = [
+  { name: "users", x: 0, y: 40, set: 0, cols: [["id", "bigint", "PK"], ["email", "text", ""], ["created_at", "timestamptz", ""]] },
+  { name: "webhooks", x: 250, y: 20, set: 0, cols: [["id", "bigint", "PK"], ["owner_id", "bigint", "FK"], ["url", "text", ""], ["secret", "text", ""], ["created_at", "timestamptz", ""]] },
+  { name: "deliveries", x: 500, y: 60, set: 0, cols: [["id", "bigint", "PK"], ["webhook_id", "bigint", "FK"], ["status", "smallint", ""], ["attempts", "int", ""], ["last_error", "text?", ""], ["created_at", "timestamptz", ""]] },
+  { name: "delivery_attempts", x: 750, y: 30, set: 0, cols: [["id", "bigint", "PK"], ["delivery_id", "bigint", "FK"], ["status", "smallint", ""], ["at", "timestamptz", ""]] },
+];
+const TABLE_EDGES = [[1, 0, "owner_id"], [2, 1, "webhook_id"], [3, 2, "delivery_id"]];
+
+const state = {};
+const base = (path) => path.split("/").pop();
+const short = (q) => q.split("::").slice(-2).join("::");
+
+function card(n, x, y, sub, act) {
+  return { id: n.id, x, y, w: 230, h: 46, kind: n.kind, title: short(n.qualified), sub, badge: null, extra: [], look: "plain", act };
+}
+const columnTop = (count) => -((Math.max(count, 1) - 1) * 60) / 2;
+function symbolPicture(name) {
+  const g = SYMBOL[name], n = g.node;
+  const cards = [{ ...card(n, 0, 0, "", null), w: 280, h: 62, title: n.name, sub: `${base(n.file)}:${n.line}–${n.end}`, look: "focus" }];
+  const links = [], captions = [];
+  for (const [side, list] of [[-1, g.callers], [1, g.callees]]) {
+    const t = columnTop(list.length);
+    captions.push([side * 400, t - 40, `${side < 0 ? "called by" : "calls"} · ${list.length}`]);
+    list.forEach(([other, lines], row) => {
+      const sub = other.file === n.file ? `same file · :${other.line}` : `${base(other.file)}:${other.line}`;
+      cards.push(card(other, side * 400, t + row * 60, sub, other.id));
+      const [from, to, tint] = side < 0 ? [other.id, n.id, "in"] : [n.id, other.id, "out"];
+      links.push({ from, to, sides: ["right", "left"], line: "flow", tint, particle: true, delay: row * 0.3, period: 1.8, width: 1.6, hint: `calls line ${lines.join(", ")}` });
+    });
+  }
+  return { cards, links, captions, key: `symbol:${name}` };
+}
+function mapPicture(selected) {
+  const cards = [], biggest = Math.max(...MODULES.map((m) => m.symbols));
+  for (const level of [2, 1, 0]) {
+    const row = MODULES.filter((m) => m.layer === level);
+    row.forEach((m, i) => {
+      const touched = m.files.filter((f) => CHANGED.includes(f)).length;
+      cards.push({ id: m.id, x: (i - (row.length - 1) / 2) * 300, y: (2 - level) * 150, w: 200 + 60 * Math.sqrt(m.symbols / biggest), h: 64, kind: "module", title: m.id, sub: `${m.symbols} symbols · ${m.files.length} files · ${m.dependents} depend on it`, badge: touched ? `${touched} changed` : null, extra: [], look: m.id === selected ? "focus" : "plain", act: m.id });
+    });
+  }
+  const busiest = Math.max(...MODULE_LINKS.map((l) => l[2]));
+  const links = [];
+  for (const [source, target, edges, kinds] of MODULE_LINKS) {
+    const picked = selected && (source === selected || target === selected);
+    if (edges < 4 && !picked) continue;
+    links.push({ from: source, to: target, sides: ["bottom", "top"], line: "flow", tint: "in", particle: picked || edges > busiest * 0.25, delay: 0, period: 2.4, width: Math.min(1 + Math.log2(edges) * 0.7, 6), hint: `${edges} edges · ${kinds}` });
+  }
+  return { cards, links, captions: [[0, -60, "entry points"], [0, 370, "foundations"]], key: "map" };
+}
+function flowPicture(selected) {
+  const cards = [], links = [];
+  FLOW.forEach(([n, line], i) => {
+    const c = card(n, i * 330, i % 2 ? 46 : -46, `${base(n.file)}:${n.line}`, `step:${i}`);
+    cards.push({ ...c, w: 250, h: 54, look: i === selected ? "focus" : "plain" });
+    if (i) links.push({ from: FLOW[i - 1][0].id, to: n.id, sides: ["right", "left"], line: "flow", tint: "path", arrow: true, particle: true, period: 1.1 * FLOW.length, delay: (i - 1) * 1.1, width: 1.6, label: `line ${line}` });
+  });
+  return { cards, links, captions: [], key: "flow" };
+}
+function bounds(p) {
+  let b = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const c of p.cards) b = [Math.min(b[0], c.x - c.w / 2), Math.min(b[1], c.y - c.h / 2), Math.max(b[2], c.x + c.w / 2), Math.max(b[3], c.y + c.h / 2)];
+  for (const [x, y] of p.captions) b = [Math.min(b[0], x - 60), Math.min(b[1], y - 16), Math.max(b[2], x + 60), b[3]];
+  return [b[0] - 40, b[1] - 40, b[2] - b[0] + 80, b[3] - b[1] + 80];
+}
+function fit(box) {
+  const view = $("canvas-box");
+  const [w, h] = [view.clientWidth, view.clientHeight];
+  const scale = Math.min(Math.max(Math.min(w / box[2], h / box[3]), 0.08), 1.6) * 0.92;
+  $("cam").style.transform = `translate(${((w - box[2] * scale) / 2 - box[0] * scale).toFixed(2)}px, ${((h - box[3] * scale) / 2 - box[1] * scale).toFixed(2)}px) scale(${scale.toFixed(4)})`;
+  $("cam").style.transformOrigin = "0 0";
+  $("zoom").textContent = `${Math.round(scale * 100)}% · scroll to pan · pinch or ⌘-scroll to zoom`;
+}
+
+function anchor(c, side) {
+  return { left: [c.x - c.w / 2, c.y], right: [c.x + c.w / 2, c.y], top: [c.x, c.y - c.h / 2], bottom: [c.x, c.y + c.h / 2] }[side];
+}
+function curve(a, b, sides) {
+  const [x0, y0] = anchor(a, sides[0]), [x1, y1] = anchor(b, sides[1]);
+  const mid = [(x0 + x1) / 2, (y0 + y1) / 2];
+  if (sides[0] === "top" || sides[0] === "bottom") return [`M${x0.toFixed(1)},${y0.toFixed(1)} C${x0.toFixed(1)},${mid[1].toFixed(1)} ${x1.toFixed(1)},${mid[1].toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`, mid];
+  const dx = Math.max(Math.abs(x1 - x0) * 0.5, 60);
+  const [c0, c1] = sides[0] === "left" ? [x0 - dx, x1 + dx] : [x0 + dx, x1 - dx];
+  return [`M${x0.toFixed(1)},${y0.toFixed(1)} C${c0.toFixed(1)},${y0.toFixed(1)} ${c1.toFixed(1)},${y1.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`, mid];
+}
+const TINT = { in: "var(--koda-accent-indigo-bright)", out: "var(--koda-accent-purple-bright)", path: "url(#koda-graph-focus)" };
+function cardMarkup(c, faded) {
+  const focus = c.look === "focus", { w, h } = c;
+  const titleY = focus ? 26 : h / 2 - 3, subY = focus ? 44 : h / 2 + 12;
+  const look = { plain: "", focus: "koda-focus", more: "koda-more" }[c.look];
+  const inner = `${focus ? `<rect class="koda-halo" x="-4" y="-4" width="${w + 8}" height="${h + 8}" rx="16"/>` : ""}<rect class="koda-card" width="${w}" height="${h}" rx="12"/>`
+    + `<rect class="koda-kind-fill" x="0" y="10" width="3" height="${h - 20}" rx="1.5"/><circle class="koda-kind-fill" cx="20" cy="${focus ? 22 : h / 2}" r="${focus ? 7 : 5}" opacity="0.9"/>`
+    + `<text x="36" y="${titleY}" font-size="${focus ? 15 : 12.5}" font-weight="600" class="fill-ink">${esc(clipped(c.title, focus ? 26 : 27))}</text>`
+    + `<text x="36" y="${subY}" font-size="11" class="fill-dim">${esc(clipped(c.sub, focus ? 34 : 30))}</text>`
+    + (focus ? `<text x="${w - 14}" y="22" text-anchor="end" font-size="9.5" letter-spacing="0.6" class="koda-kind-fill uppercase" font-weight="600">${c.kind}</text>` : "")
+    + (c.badge ? `<text x="${w - 10}" y="${focus ? h - 14 : 14}" text-anchor="end" font-size="10.5" class="fill-muted">${c.badge}</text>` : "");
+  return [`koda-node ${kindClass(c.kind)} ${look} ${faded ? "koda-dim" : ""}`, `transform: translate(${(c.x - w / 2).toFixed(1)}px, ${(c.y - h / 2).toFixed(1)}px)`, inner];
+}
+function draw({ settling = false } = {}) {
+  const p = state.picture, byId = Object.fromEntries(p.cards.map((c) => [c.id, c]));
+  const focus = state.hover;
+  const near = new Set();
+  if (focus) for (const l of p.links) if (l.from === focus || l.to === focus) { near.add(l.from); near.add(l.to); near.add(focus); }
+  $("captions").innerHTML = p.captions.map(([x, y, t]) => `<text x="${x}" y="${y}" text-anchor="middle" font-size="10.5" letter-spacing="1.2" class="fill-dim uppercase">${t}</text>`).join("");
+  let edges = "", particles = "", labels = "";
+  p.links.forEach((l, i) => {
+    const a = byId[l.from], b = byId[l.to];
+    if (!a || !b) return;
+    const [d, [mx, my]] = curve(a, b, l.sides);
+    const hot = focus ? l.from === focus || l.to === focus : null;
+    edges += `<path id="koda-graph-edge-${i}" d="${d}" class="koda-edge koda-${l.line} ${settling ? "koda-settling" : ""} ${hot === true ? "koda-hot" : hot === false ? "koda-dim" : ""}" stroke="${TINT[l.tint]}" stroke-width="${l.width}" ${l.arrow ? 'marker-end="url(#koda-graph-arrow)"' : ""}/>`;
+    if (settling) return;
+    if (hot ?? l.particle) {
+      const fill = hot != null ? "var(--koda-ink)" : "var(--koda-accent-indigo-bright)";
+      particles += `<circle class="koda-particle" r="3.1" style="color:${fill}" fill="${fill}"><animateMotion dur="${l.period.toFixed(2)}s" repeatCount="indefinite" begin="${(l.delay % l.period).toFixed(2)}s"><mpath href="#koda-graph-edge-${i}"/></animateMotion></circle>`;
+    }
+    const text = l.label || (hot === true ? l.hint : null);
+    if (text) {
+      const w = [...text].length * 6.3 + 12;
+      labels += `<g class="koda-graph-label pointer-events-none" transform="translate(${(mx - w / 2).toFixed(1)},${(my - 9).toFixed(1)})"><rect width="${w}" height="18" rx="9"/><text x="${w / 2}" y="12.5" text-anchor="middle" font-size="10.5">${esc(text)}</text></g>`;
+    }
+  });
+  $("edges").innerHTML = edges;
+  $("particles").innerHTML = particles;
+  $("labels").innerHTML = labels;
+  const host = $("cards"), seen = new Set();
+  for (const c of p.cards) {
+    seen.add(c.id);
+    const [cls, style, inner] = cardMarkup(c, near.size > 0 && !near.has(c.id));
+    let g = host.querySelector(`[data-id="${c.id}"]`);
+    if (!g) {
+      g = svgEl("g", { "data-id": c.id });
+      host.append(g);
+    }
+    g.setAttribute("class", cls);
+    g.setAttribute("style", style);
+    g.innerHTML = inner;
+  }
+  for (const g of [...host.children]) if (!seen.has(g.dataset.id)) g.remove();
+}
+async function show(picture, id) {
+  state.picture = picture;
+  state.hover = null;
+  draw({ settling: true });
+  fit(bounds(picture));
+  await sleep(640); alive(id);
+  draw();
+}
+function hover(card) {
+  state.hover = card;
+  draw();
+  if (state.view === "Symbol") drawer();
+}
+
+function header() {
+  $("views").innerHTML = VIEWS.map((v) => `<button type="button" role="radio" data-view="${v}" aria-checked="${v === state.view}" class="${v === state.view ? "flex-1 rounded bg-command/15 ring-1 ring-inset ring-command/40 px-2.5 py-1 text-app-2xs text-ink" : "flex-1 rounded px-2.5 py-1 text-app-2xs text-dim transition hover:text-muted"}">${v}</button>`).join("");
+  $("caption").textContent = state.view === "Schema" ? `${TABLES.length} tables · ${TABLE_EDGES.length} relations` : `${FILES} files · ${SYMBOLS} symbols · ${MODULES.length} folders`;
+}
+function hud() {
+  const box = $("hud");
+  if (state.view === "Map") {
+    const m = MODULES.find((m) => m.id === state.module);
+    box.innerHTML = `<div class="${FLOAT} top-3 left-3 flex max-h-[70%] max-w-[26rem] flex-col gap-2 px-3.5 py-3">${m
+      ? `<div class="flex items-center gap-2">${pill("module")}<span class="truncate font-mono text-app-md font-semibold text-ink">${m.id}</span></div><span class="font-mono text-app-2xs text-dim">${m.symbols} symbols · ${m.files.length} files · ${m.dependents} files outside reach into it</span><div class="-mx-2 min-h-0 overflow-y-auto">${m.files.map((f) => `<button type="button" class="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left font-mono text-app-2xs text-muted transition hover:bg-hover hover:text-ink"><span class="size-2 shrink-0 rounded-sm bg-muted"></span><span class="min-w-0 grow truncate">${f}</span>${CHANGED.includes(f) ? '<span class="shrink-0 text-accent-amber-bright">changed</span>' : ""}</button>`).join("")}</div>`
+      : `<span class="text-app-sm font-semibold text-ink">How the project fits together</span><span class="max-w-96 text-app-2xs leading-relaxed text-dim">${MODULES.length} folders, ${FILES} files and ${SYMBOLS} symbols. Each box is a folder, layered so everything depends on what sits below it. Click a box to light up its links and list its files.</span><label class="flex cursor-pointer items-center gap-2 text-app-2xs text-muted"><input type="checkbox" class="koda-check" tabindex="-1">Show tests and benchmarks</label>`}</div>`;
+    return;
+  }
+  if (state.view === "Symbol") {
+    const g = SYMBOL[state.symbol], n = g.node, widest = Math.max(g.blast.within, 1);
+    box.innerHTML = `<div class="${FLOAT} top-3 left-3 flex max-w-[30rem] flex-col gap-2 px-3.5 py-3"><div class="flex items-center gap-2">${pill(n.kind)}<span class="truncate font-mono text-app-md font-semibold text-ink">${n.name}</span></div>
+      <div class="flex flex-wrap items-center gap-1 font-mono text-app-2xs text-dim"><button type="button" class="cursor-pointer text-muted transition hover:text-ink">${n.file}:${n.line}</button></div>
+      <div class="flex flex-wrap gap-1.5"><span class="${CHIP} border-accent-emerald/40 bg-accent-emerald/10 text-accent-emerald-bright"><span class="size-1.5 rounded-full bg-current"></span>tested · ${g.tests} files within ${g.hops} hop${g.hops === 1 ? "" : "s"}</span></div>
+      <div class="text-app-2xs text-muted">Blast radius · <b class="text-ink tabular-nums">${g.blast.direct}</b> direct · <b class="text-ink tabular-nums">${g.blast.within}</b> within 3 hops · <b class="text-ink tabular-nums">${g.blast.files}</b> files · <b class="text-ink tabular-nums">${g.blast.test_files}</b> test files<div class="relative mt-1.5 h-1.5 overflow-hidden rounded-full bg-hover"><div class="absolute inset-y-0 left-0 rounded-full bg-accent-purple/40" style="width: 100%"></div><div class="absolute inset-y-0 left-0 rounded-full" style="width: ${(100 * g.blast.direct / widest).toFixed(1)}%; background: linear-gradient(90deg, var(--koda-accent-indigo-bright), var(--koda-accent-purple-bright))"></div></div></div></div>`;
+    return;
+  }
+  if (state.view === "Flow") {
+    const pick = "max-w-56 cursor-pointer truncate rounded-lg border border-hairline bg-subtle px-3 py-1.5 font-mono text-app-xs text-ink transition hover:border-command/60";
+    box.innerHTML = `<div class="${FLOAT} top-3 left-1/2 flex -translate-x-1/2 items-center gap-2 px-2.5 py-2"><button type="button" class="${pick}">${short(N.route.qualified)}</button>${icon("size-3.5 text-dim", GLYPH.arrowRight)}<button type="button" class="${pick}">${short(N.should_retry.qualified)}</button><button type="button" title="Swap" class="cursor-pointer rounded-md px-2 py-1 text-app-sm text-muted transition hover:bg-hover hover:text-ink">⇄</button></div>`;
+    return;
+  }
+  box.innerHTML = state.view === "Schema" ? `<div class="pointer-events-none absolute top-3 left-3 z-10 flex flex-wrap items-center gap-3 rounded-lg border border-hairline-soft bg-panel/90 px-2.5 py-1 font-mono text-app-3xs text-muted">${[["koda-schema-edge", "required"], ["koda-schema-edge koda-nullable", "nullable"], ["koda-schema-edge koda-implied", "implied"], ["koda-schema-edge koda-reverse", "virtual"], ["koda-schema-edge koda-lookup", "$lookup in code"], ["koda-schema-edge koda-reads", "view reads"]].map(([c, n]) => `<span class="flex items-center gap-1.5"><svg class="h-2.5 w-8" viewBox="0 0 34 10"><path class="${c}" style="opacity: 1" d="M2 5 H32"/></svg>${n}</span>`).join("")}</div>` : "";
+}
+function codeLines(first, lines, { calls = [], hot = [], mark = null } = {}) {
+  return `<div class="font-mono text-app-2xs leading-5">${lines.map((text, i) => {
+    const n = first + i, here = calls.filter(([line]) => line === n);
+    const st = mark === n ? "koda-mark" : hot.includes(n) ? "koda-hot" : here.length ? "koda-call" : "";
+    return `<div id="koda-graph-line-${n}" class="koda-code-line ${st} grid grid-cols-[3rem_1fr] pr-3"><span class="pr-3 text-right text-dim select-none">${n}</span><span class="whitespace-pre text-ink/85">${esc(text)}${here.map(([, name]) => `<button type="button" class="ml-3 cursor-pointer rounded bg-command/15 px-1.5 text-app-3xs text-command transition hover:bg-command/25">→ ${name}</button>`).join("")}</span></div>`;
+  }).join("")}</div>`;
+}
+function drawer() {
+  const box = $("drawer");
+  const open = state.drawer && (state.view === "Symbol" || state.view === "Flow");
+  box.style.display = open ? "" : "none";
+  if (!open) return;
+  let kind, title, caption, body;
+  if (state.view === "Symbol") {
+    const g = SYMBOL[state.symbol], n = g.node;
+    const hot = g.callees.filter(([o]) => o.id === state.hover).flatMap(([, lines]) => lines);
+    kind = n.kind; title = n.qualified; caption = `${n.end - n.line + 1} lines`;
+    body = codeLines(n.line, g.source, { calls: g.callees.flatMap(([o, lines]) => lines.map((l) => [l, o.name])), hot });
+  } else {
+    const [n] = FLOW[state.step], [first, lines] = FLOW_SOURCE[n.id], next = FLOW[state.step + 1]?.[1] ?? null;
+    kind = n.kind; title = n.qualified; caption = `step ${state.step + 1}`;
+    body = codeLines(first, lines, { mark: next });
+  }
+  box.innerHTML = `<div class="flex items-center gap-2 border-b border-hairline px-3.5 py-2.5"><span class="${kindClass(kind)} size-2.5 shrink-0 rounded-sm" style="background: var(--koda-kind)"></span><span class="min-w-0 grow truncate font-mono text-app-xs font-semibold text-ink">${title}</span><span class="shrink-0 font-mono text-app-3xs text-dim">${caption}</span><button type="button" title="Open in the editor" class="shrink-0 cursor-pointer rounded p-1 text-dim transition hover:bg-hover hover:text-ink">${icon("size-3.5", GLYPH.external)}</button></div><div class="min-h-0 grow overflow-auto py-2">${body}</div>`;
+}
+function palette(text) {
+  if (text == null) { $("palette").innerHTML = ""; return; }
+  const rows = text.length < 3 ? [] : [N.send_webhook, N.sign_payload].filter((n) => n.name.startsWith(text.slice(0, 3)) && n.name.includes(text));
+  const note = !text ? "Type a symbol or file name." : rows.length ? "" : "Nothing matches.";
+  $("palette").innerHTML = `<div class="absolute inset-0 z-30 bg-black/30 backdrop-blur-[2px]"><div role="dialog" aria-label="Search the code graph" class="absolute top-14 left-1/2 flex w-[40rem] max-w-[92%] -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-hairline bg-elevated elevated-shadow">
+    <div class="flex items-center gap-3 border-b border-hairline px-4">${icon("size-4 text-dim", GLYPH.search)}<span class="flex h-12 min-w-0 grow items-center text-app-md ${text ? "text-ink caret" : "text-dim"}">${text || "Search a symbol or file…"}</span></div>
+    <div class="max-h-[26rem] overflow-y-auto py-1.5">${note ? `<p class="px-4 py-3 text-app-2xs text-dim">${note}</p>` : ""}${rows.map((n, at) => `<button type="button" data-hit="${n.id}" class="mx-1.5 grid w-[calc(100%-0.75rem)] cursor-pointer grid-cols-[1rem_1fr_auto] items-center gap-2.5 rounded-lg ${at === 0 ? "bg-command/15 " : ""}px-3 py-2 text-left"><span class="${kindClass(n.kind)} size-2.5 rounded-sm" style="background: var(--koda-kind)"></span><span class="min-w-0 truncate font-mono text-app-xs text-ink">${n.qualified}</span><span class="font-mono text-app-3xs text-dim">${base(n.file)}:${n.line}</span></button>`).join("")}</div>
+    <div class="border-t border-hairline px-4 py-2 text-app-3xs text-dim">↑↓ move · Enter open · Esc close</div></div></div>`;
+}
+
+const BOX_W = 210, HEAD = 28, ROWH = 18;
+function schemaScene() {
+  const sel = state.table;
+  const near = sel == null ? [] : TABLE_EDGES.filter(([a, b]) => a === sel || b === sel).flatMap(([a, b]) => [a, b]);
+  const geo = TABLES.map((t) => ({ x: t.x, y: t.y, w: BOX_W, h: HEAD + t.cols.length * ROWH + 8 }));
+  let edges = "";
+  for (const [a, b, col] of TABLE_EDGES) {
+    const ga = geo[a], gb = geo[b], row = TABLES[a].cols.findIndex(([c]) => c === col);
+    const [x0, y0] = [ga.x, ga.y + HEAD + row * ROWH + 9], [x1, y1] = [gb.x + gb.w, gb.y + HEAD + 9];
+    const dir = sel == null ? "" : a === sel ? "koda-out" : b === sel ? "koda-in" : "koda-faded";
+    edges += `<path class="koda-schema-edge ${dir}" d="M${x0},${y0} C${x0 - 40},${y0} ${x1 + 40},${y1} ${x1},${y1}"/>`;
+  }
+  const boxes = TABLES.map((t, i) => {
+    const g = geo[i], faded = sel != null && sel !== i && !near.includes(i);
+    const head = `M ${g.x} ${g.y + 9} a 9 9 0 0 1 9 -9 h ${g.w - 18} a 9 9 0 0 1 9 9 v ${HEAD - 9} h ${-g.w} z`;
+    return `<g data-table="${i}" class="koda-schema-node cursor-pointer ${sel === i ? "koda-sel" : ""}" opacity="${faded ? 0.3 : 1}"><rect class="koda-schema-box" x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}" rx="9"/><path class="koda-schema-head" d="${head}"/><rect class="fill-accent-cyan" x="${g.x}" y="${g.y + 7}" width="3" height="${HEAD - 14}" rx="1.5"/><text x="${g.x + 12}" y="${g.y + 18}" font-size="11.5" font-weight="700" class="fill-ink">${t.name}</text>${t.cols.map(([c, k, tag], r) => {
+      const y = g.y + HEAD + r * ROWH + 13;
+      return `<text x="${g.x + 12}" y="${y}" font-size="10.5" class="fill-ink">${c}</text>${tag ? `<text x="${g.x + g.w - 8 - k.length * 6 - 12}" y="${y}" text-anchor="end" font-size="9" class="${tag === "PK" ? "fill-accent-amber-bright" : "fill-accent-cyan-bright"}">${tag}</text>` : ""}<text x="${g.x + g.w - 8}" y="${y}" text-anchor="end" font-size="9.5" class="fill-dim">${k}</text>`;
+    }).join("")}</g>`;
+  }).join("");
+  $("captions").innerHTML = ""; $("particles").innerHTML = ""; $("labels").innerHTML = "";
+  $("edges").innerHTML = edges;
+  $("cards").innerHTML = boxes;
+  fit([-20, 0, 1000, 220]);
+}
+function tableList() {
+  const rows = TABLES.map((t, i) => [t, i]).sort(([a], [b]) => a.name.localeCompare(b.name));
+  $("tables").innerHTML = `<div class="flex h-10 shrink-0 items-center gap-2 border-b border-hairline px-3">${icon("size-3.5 shrink-0 text-dim", GLYPH.search)}<span class="min-w-0 grow font-mono text-app-xs text-dim">Find a table…  /</span></div><div class="min-h-0 grow overflow-y-auto pb-3"><div class="flex items-center gap-2 px-3 pt-3.5 pb-1.5 text-app-2xs font-semibold text-ink"><span class="size-2 shrink-0 rounded-full bg-accent-cyan"></span><span class="truncate">migrations</span><span class="shrink-0 font-normal text-dim">SQL</span></div>${rows.map(([t, i]) => `<button type="button" data-row="${i}" class="${state.table === i ? "flex w-full items-center gap-2 bg-accent-cyan/14 py-1 pr-3 pl-7 text-left" : "flex w-full cursor-pointer items-center gap-2 py-1 pr-3 pl-7 text-left transition hover:bg-hover"}"><span class="min-w-0 grow truncate font-mono text-app-xs text-ink">${t.name}</span><span class="shrink-0 font-mono text-app-3xs text-dim">${t.cols.length}</span></button>`).join("")}</div>`;
+}
+function toolbar() {
+  const SEG = "flex rounded-md bg-subtle p-0.5", ON = "cursor-pointer rounded px-2.5 py-1 text-app-2xs bg-elevated text-ink", OFF = "cursor-pointer rounded px-2.5 py-1 text-app-2xs text-muted transition hover:text-ink";
+  const BTN = "flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline px-2.5 py-1 text-app-2xs text-muted transition hover:border-accent-cyan/40 hover:text-ink";
+  $("toolbar").innerHTML = `<div class="flex flex-wrap items-center gap-2 border-b border-hairline-soft bg-panel/85 px-3 py-2"><div class="${SEG}">${["Map", "Mermaid", "DBML", "Graphviz"].map((n, i) => `<button type="button" class="${i ? OFF : ON}">${n}</button>`).join("")}</div><div class="${SEG}">${["Auto", "Names", "Keys", "All fields"].map((n, i) => `<button type="button" class="${i ? OFF : ON}">${n}</button>`).join("")}</div><button type="button" class="${BTN}">Show<span class="text-dim">${TABLES.length}</span></button><span class="grow"></span><button type="button" title="Find how two tables join (p)" class="${BTN}">↝ Path to…</button><button type="button" class="${BTN}">Health</button><button type="button" class="${BTN}">Source</button></div>`;
+}
+function tablePanel() {
+  const box = $("table-panel");
+  if (state.table == null) {
+    box.innerHTML = `<p class="px-6 py-10 text-center text-app-2xs text-dim">Pick a table on the map or in the list. Then use <b>Path to…</b> to see how it joins to another table.</p>`;
+    return;
+  }
+  const t = TABLES[state.table];
+  const section = (title, count, body) => `<div class="mt-4"><button type="button" aria-expanded="true" class="flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left text-app-2xs font-semibold text-muted">${icon("size-3 shrink-0 rotate-90 text-dim transition", GLYPH.chevronRight)}${title}${count != null ? `<span class="font-normal text-dim">${count}</span>` : ""}</button><div class="mt-1.5">${body}</div></div>`;
+  const LINK = "cursor-pointer font-mono text-accent-cyan-bright underline decoration-accent-cyan/40 underline-offset-2 transition hover:text-ink";
+  box.innerHTML = `<div class="min-h-0 grow overflow-y-auto px-4.5 py-4 text-app-2xs"><div class="flex items-start gap-2"><span class="mt-1.5 size-2 shrink-0 rounded-full bg-accent-cyan"></span><div class="min-w-0 grow"><div class="font-mono text-app-sm font-bold break-all text-ink">${t.name}</div><div class="mt-0.5 text-app-2xs break-all text-dim">table · migrations</div></div></div>
+    <div class="mt-2.5 flex flex-wrap gap-1.5"><button type="button" class="flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline px-2.5 py-1 text-app-2xs text-muted transition hover:border-accent-cyan/40 hover:text-ink">↝ Path to…</button><button type="button" class="flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline px-2.5 py-1 text-app-2xs text-muted transition hover:border-accent-cyan/40 hover:text-ink">View as Mermaid</button></div>
+    ${section("Columns", t.cols.length, `<table class="w-full font-mono text-app-2xs"><tbody>${t.cols.map(([c, k, tag]) => `<tr class="align-top hover:bg-subtle"><td class="py-1 pr-2 text-ink">${c}${tag === "PK" ? '<span class="ml-1 rounded-sm border border-accent-amber/30 px-1 text-app-3xs text-accent-amber-bright">PK</span>' : tag === "FK" ? '<span class="ml-1 rounded-sm border border-accent-cyan/28 px-1 text-app-3xs text-accent-cyan-bright">FK</span>' : ""}</td><td class="py-1 pr-2 text-muted">${k}</td></tr>`).join("")}</tbody></table>`)}
+    ${section("References", null, `<div class="py-0.5 font-mono text-muted">(webhook_id) → <button type="button" class="${LINK}">webhooks</button>(id)</div>`)}
+    ${section("Referenced by", null, `<div class="py-0.5 font-mono text-muted"><button type="button" class="${LINK}">delivery_attempts</button>(delivery_id)</div>`)}
+    ${section("Used in code", 2, `<ul class="flex flex-col gap-1.5 font-mono">${[["src/db/deliveries.rs:12", "record_delivery", "webhook_id, status, attempts"], ["src/db/deliveries.rs:40", "failed_deliveries", "status, last_error"]].map(([at, fn, cols]) => `<li class="flex flex-col"><button type="button" class="${LINK} self-start text-left">${at}</button><span class="text-ink">in ${fn}</span><span class="text-dim">columns: ${cols}</span></li>`).join("")}</ul>`)}</div>`;
+}
+function layout() {
+  const schema = state.view === "Schema";
+  $("tables").style.display = schema ? "" : "none";
+  $("toolbar").style.display = schema ? "" : "none";
+  $("table-panel").style.display = schema ? "" : "none";
+  header(); hud(); drawer();
+  if (schema) { tableList(); toolbar(); tablePanel(); }
+}
+
+const q = (sel) => document.querySelector(sel);
+const cardAt = (id) => q(`#cards [data-id="${id}"] .koda-card`);
+async function setView(view, id) {
+  await click(q(`#views [data-view="${view}"]`), id);
+  state.view = view;
+  layout();
+}
+async function play(id) {
+  chapter("Open the code graph with /graph");
+  Object.assign(state, { view: "Map", module: null, symbol: null, hover: null, drawer: true, step: 0, table: null, picture: null });
+  $("pointer").style.left = "640px"; $("pointer").style.top = "820px";
+  mountSession();
+  await sleep(900); alive(id);
+  await click($("prompt"), id);
+  let slash = "";
+  for (const ch of "/graph") {
+    slash += ch;
+    $("dock-slot").innerHTML = dock({ title: ASKED, text: slash, caret: true, popover: commandChips("/graph", "Explore who calls what in this project's code", "⇧⌘G") });
+    await sleep(90); alive(id);
+  }
+  await sleep(1400); alive(id);
+  $("dock-slot").innerHTML = dock({ title: ASKED });
+
+  chapter("The map of the project");
+  openGraph();
+  palette(null);
+  layout();
+  await show(mapPicture(null), id);
+  await sleep(1800); alive(id);
+
+  chapter("A folder and its links");
+  await pointTo(cardAt("src/webhooks"), id);
+  hover("src/webhooks");
+  await sleep(1200); alive(id);
+  await click(cardAt("src/webhooks"), id);
+  state.module = "src/webhooks";
+  state.picture = mapPicture("src/webhooks");
+  hud(); draw({ settling: false });
+  hover("src/webhooks");
+  await sleep(2400); alive(id);
+
+  chapter("Search for a symbol");
+  await click($("search"), id);
+  state.hover = null; draw();
+  palette("");
+  await sleep(500); alive(id);
+  let typed = "";
+  for (const ch of "send_web") { typed += ch; palette(typed); await sleep(70 + Math.random() * 40); alive(id); }
+  await sleep(600); alive(id);
+  await click(q('[data-hit="send_webhook"]'), id);
+  palette(null);
+  state.view = "Symbol"; state.symbol = "send_webhook";
+  layout();
+  $("cards").innerHTML = "";
+  await show(symbolPicture("send_webhook"), id);
+
+  chapter("Who calls it, and what it calls");
+  await sleep(1200); alive(id);
+  await pointTo(cardAt("route"), id);
+  hover("route");
+  await sleep(1500); alive(id);
+  await pointTo(cardAt("should_retry"), id);
+  hover("should_retry");
+  await sleep(2200); alive(id);
+
+  chapter("Follow a call");
+  await click(cardAt("should_retry"), id);
+  state.symbol = "should_retry";
+  layout();
+  await show(symbolPicture("should_retry"), id);
+  await sleep(2600); alive(id);
+
+  chapter("Trace a flow");
+  await setView("Flow", id);
+  state.step = 0;
+  $("cards").innerHTML = "";
+  layout();
+  await show(flowPicture(0), id);
+  await sleep(1600); alive(id);
+  for (const step of [1, 2]) {
+    await click(cardAt(FLOW[step][0].id), id);
+    state.step = step;
+    state.picture = flowPicture(step);
+    draw(); drawer();
+    await sleep(1700); alive(id);
+  }
+
+  chapter("The database schema");
+  await setView("Schema", id);
+  schemaScene();
+  await sleep(1600); alive(id);
+  await click(q('#cards [data-table="2"] .koda-schema-box'), id);
+  state.table = 2;
+  tableList(); tablePanel(); schemaScene();
+  await sleep(4500); alive(id);
+}
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

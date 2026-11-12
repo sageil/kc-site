@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Memory Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+<script src="memory-ui.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const SOLUTION = "a81c04de-5b27-4f0e-9c13-6d2e8a41b7f9", PROBLEM = "3f9a2c71-0e4d-4b8a-a6f2-91c5d3e07b28", REPLAY = "19bc5d07-3e6a-4b28-8c91-f4a07d2e5b63";
+const ASKED = "Deliveries to a slow endpoint fail again.";
+const q = (s) => document.querySelector(s);
+
+async function play(id) {
+  const p = $("pointer"); p.style.left = "640px"; p.style.top = "820px";
+  memReset(MEMORIES_EDITED());
+  mountShell(sessionColumn(sessionStrip({ title: ASKED, turn: 24100, session: 24100, hit: "68.2%" })), {
+    phase: "Finished", toolCalls: 5, doing: ASKED,
+    sessions: [{ title: ASKED, ago: "2m ago", turns: 1, phase: "Finished", selected: true }, { title: "Webhooks time out in staging. Find out why and fix it.", ago: "18d ago", turns: 1 }, { title: "Rotate the webhook secret", ago: "22d ago", turns: 3 }],
+    changes: [{ path: "src/webhooks/retry.rs", state: "M", added: 1, removed: 1 }],
+    graph: [{ path: "src/webhooks/retry.rs", state: "M", definitions: 4, uses: 2, usedBy: 1 }],
+    memory: { total: 8, session: [{ verb: "Read", title: EDITED_TITLE, kind: "solution" }], recent: briefsOf(MEM.mems) },
+    context: { used: 24100 },
+  });
+  $("dock-slot").innerHTML = dock({ title: ASKED });
+  $("log").innerHTML = said(ASKED) + calls([
+    memoryCall({ command: "get", memory_id: SOLUTION, took: "0.1s" }),
+    sessionsCall({ session_id: SESSION_FIX, took: "0.2s" }),
+    call({ kind: "read", detail: "src/webhooks/retry.rs", took: "0.1s" }),
+    call({ kind: "edit", verb: "Edit", detail: "src/webhooks/retry.rs", took: "0.1s" }),
+    call({ kind: "shell", detail: "cargo test webhooks", took: "7.9s" }),
+  ]) + answer("Retries still stopped at 5 s, because `retry.rs` built its own client with the old limit. It now uses `deliver::client()`. The webhook tests pass.") + footer("34s", { calls: 5, read: 1, edited: 1, added: 1, removed: 1 });
+
+  chapter("Every memory, by importance");
+  await sleep(900); alive(id);
+  await click(q("#sh-memory-manage"), id);
+  memPaint(); await sleep(1800); alive(id);
+  chapter("A memory and its links");
+  await click(q(`[data-id="${SOLUTION}"]`), id);
+  memOpen(SOLUTION); memPaint(); await sleep(2200); alive(id);
+  chapter("Its history");
+  await click(q('[data-act="History"]'), id);
+  MEM.panel = "history"; MEM.versions = memVersions(memById(SOLUTION)); memPaint(); await sleep(2600); alive(id);
+  await click(q('[data-act="Back to the memory"]'), id);
+  MEM.panel = "detail"; memPaint(); await sleep(900); alive(id);
+  chapter("The graph view");
+  await click(q('[data-view="graph"]'), id);
+  Object.assign(MEM, { view: "graph", opened: null }); memPaint(); await sleep(2200); alive(id);
+  await click(q(`[data-id="${SOLUTION}"] circle`), id);
+  memOpen(SOLUTION); memPaint(); await sleep(1500); alive(id);
+  chapter("Linking two memories");
+  await click($("mem-link-chip"), id);
+  MEM.chip = true; memPaint(); await sleep(1400); alive(id);
+  await click(q('[data-drop="to"]'), id);
+  MEM.drop = "to"; memPaint(); await sleep(1100); alive(id);
+  await click(q(`[data-opt="${REPLAY}"]`), id);
+  MEM.link = { to: REPLAY, kind: "RELATED_TO" }; MEM.drop = null; memPaint(); await sleep(700); alive(id);
+  await click(q('[data-drop="kind"]'), id);
+  MEM.drop = "kind"; memPaint(); await sleep(700); alive(id);
+  for (const ch of "valid") { MEM.needle += ch; memPaint(); await sleep(110); alive(id); }
+  await sleep(700); alive(id);
+  await click(q('[data-opt="VALIDATED_BY"]'), id);
+  MEM.link.kind = "VALIDATED_BY"; MEM.drop = null; MEM.needle = ""; memPaint(); await sleep(1000); alive(id);
+  await click(q('[data-act="Link"]'), id);
+  MEM.chip = false; MEM.links.push([SOLUTION, REPLAY, "VALIDATED_BY"]); memPaint(); await sleep(2600); alive(id);
+  chapter("Timeline and search");
+  await click(q('[data-view="timeline"]'), id);
+  Object.assign(MEM, { view: "timeline", opened: null }); memPaint(); await sleep(1800); alive(id);
+  await pointTo($("mem-search"), id, 0.3);
+  for (const ch of "staging") { MEM.query += ch; memPaint(); await sleep(90); alive(id); }
+  await sleep(1400); alive(id);
+  chapter("Filtering by kind");
+  await click(q('[data-kind="problem"]'), id);
+  MEM.kind = "problem"; memPaint(); await sleep(2600); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

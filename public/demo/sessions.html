@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Sessions Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const ASK = "Retries all fire at once after an outage. Add backoff to the webhook retry worker.";
+const STEER = "Use the backoff helper in src/webhooks/retry.rs. Do not add a crate.";
+const QUEUE = "Then note the change in the README.";
+const ASK_AGAIN = "Retries all fire at once after an outage. Add backoff with the helper in src/webhooks/retry.rs.";
+const PAST = "How did we roll out the last retry change?";
+const ROW = "flex w-full cursor-pointer items-start gap-2 rounded-md px-2.5 py-1.5 text-left";
+const BTN = "shrink-0 cursor-pointer rounded-md border border-hairline px-2 py-0.5 text-app-2xs text-muted transition hover:border-accent-purple/45 hover:text-ink";
+const OLDER = [{ title: "Deliveries to a slow endpoint fail again.", ago: "2d ago", turns: 1 }, { title: "Webhooks time out in staging. Find out why and fix it.", ago: "20d ago", turns: 1 }, { title: "Add webhook retries", ago: "26d ago", turns: 8 }];
+const q = (s) => document.querySelector(s);
+const GROUP = '<div class="flex flex-col py-1">';
+function add(html) {
+  const last = $("log").lastElementChild;
+  if (html.startsWith(GROUP) && last?.dataset.calls) last.insertAdjacentHTML("beforeend", html.slice(GROUP.length, -6));
+  else $("log").insertAdjacentHTML("beforeend", html.startsWith(GROUP) ? html.replace(GROUP, '<div data-calls="1" class="flex flex-col py-1">') : html);
+  $("scroll").scrollTop = $("scroll").scrollHeight;
+}
+const breakGroup = () => { const last = $("log").lastElementChild; if (last) delete last.dataset.calls; };
+let D = {};
+const setDock = (o) => { D = o; $("dock-slot").innerHTML = dock(o); };
+const strip = (turn, session) => { $("strip-slot").innerHTML = sessionStrip({ title: ASK, turn, session, hit: session ? "66.8%" : null }); };
+const rewindButton = '<div data-rewind class="absolute top-2 right-2 transition-opacity opacity-0 group-hover:opacity-100 focus-within:opacity-100"><div class="relative min-w-0 "><button type="button" aria-label="Rewind to this message" title="Rewind to this message" aria-haspopup="listbox" aria-expanded="false" class="flex size-6 cursor-pointer items-center justify-center rounded text-muted transition hover:bg-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">' + icon("size-3.5", GLYPH.history) + "</button></div></div>";
+const userMessage = (text, key) => said(text).replace('class="enter group relative', `data-msg="${key}" class="enter group relative`).replace(/<\/div>$/, `${rewindButton}</div>`);
+
+function rewindMenu(confirming) {
+  const items = confirming
+    ? [["Approve once", "Proceed this time only", "approve"], ["Cancel", "Keep the current conversation", "cancel"]]
+    : [["Rewind conversation and files", "Removes this message and everything after it; it comes back in the composer", "both"], ["Rewind conversation only", "Files stay as they are now", "conversation"], ["Restore files only", "Keeps the conversation; Koda is told which files went back", "files"]];
+  const status = "6 messages from here on. Restores 2 files.";
+  const head = confirming
+    ? `<div class="flex flex-col gap-1 border-b border-hairline px-3 py-2"><p class="font-mono text-app-xs text-ink">Rewind conversation and files — destroys conversation state</p><p class="font-mono text-app-2xs font-normal text-dim">${status}</p></div>`
+    : `<p class="border-b border-hairline px-3 py-2 font-mono text-app-2xs font-normal text-dim">${status}</p>`;
+  return `<div id="rewind-menu" class="enter absolute z-40 flex max-h-80 flex-col overflow-hidden rounded-lg border border-hairline bg-elevated elevated-shadow right-0 top-full mt-1.5 w-80">${head}<div class="flex min-h-0 grow flex-col overflow-y-auto p-1" role="listbox" aria-label="Rewind to this message">${items.map(([label, desc, key], i) =>
+    `<button type="button" role="option" tabindex="-1" data-item="${key}" aria-selected="false" class="${i === 0 ? "flex w-full cursor-pointer items-start gap-2 rounded-md bg-command/15 px-2.5 py-1.5 text-left" : ROW}"><span class="invisible mt-px w-3.5 shrink-0">${icon("size-3.5", GLYPH.check)}</span><span class="flex min-w-0 grow flex-col gap-0.5"><span class="flex min-w-0 items-center gap-2"><span class="min-w-0 truncate font-mono text-app-xs ${i === 0 ? "text-ink" : "text-muted"}">${label}</span></span><span class="line-clamp-1 text-app-2xs text-dim">${desc}</span></span></button>`).join("")}</div></div>`;
+}
+const meter = (before, after, of) => `<div class="flex shrink-0 items-center gap-2 font-mono text-app-2xs text-muted"><span class="text-ink">${before}</span>${after ? `<span class="text-dim">→</span><span class="text-accent-emerald">${after}</span>` : `<span class="text-dim">/ ${of} ceiling</span>`}<span class="relative h-1.5 w-28 overflow-hidden rounded-full bg-hover"><span class="absolute inset-y-0 left-0 rounded-full bg-accent-amber/55" style="width:${after ? 100 : 82}%"></span>${after ? '<span class="absolute inset-y-0 left-0 rounded-full bg-linear-to-r from-accent-cyan to-accent-indigo" style="width:14%"></span>' : ""}</span></div>`;
+const compacting = () => `<div class="enter overflow-hidden rounded-lg border border-accent-purple/35 bg-accent-purple/5"><div class="flex flex-wrap items-center gap-2.5 px-3 py-2.5"><span class="grid size-6.5 shrink-0 place-items-center rounded-md bg-accent-purple/18 text-app-sm text-accent-purple-bright"><span class="size-3.5 animate-spin rounded-full border-2 border-accent-purple/30 border-t-accent-purple-bright"></span></span><div class="min-w-0"><div class="text-app-xs font-semibold text-ink">Compacting context</div><div class="font-mono text-app-2xs text-muted">claude-sonnet-5-5 is writing a summary of the earlier conversation</div></div><span class="grow"></span>${meter("164k", null, "160k")}</div></div>`;
+const compacted = (open) => `<div class="overflow-hidden rounded-lg border border-accent-purple/35 bg-accent-purple/5"><div class="flex cursor-pointer flex-wrap items-center gap-2.5 px-3 py-2.5"><span class="grid size-6.5 shrink-0 place-items-center rounded-md bg-accent-purple/18 text-app-sm text-accent-purple-bright">⇣</span><div class="min-w-0"><div class="text-app-xs font-semibold text-ink">Context compacted</div><div class="font-mono text-app-2xs text-muted">14 messages summarised · your last message kept word for word</div></div><span class="grow"></span>${meter("164k", "23k")}<button type="button" id="summary-btn" class="${open ? "shrink-0 rounded-md border border-accent-purple/55 px-2 py-0.5 text-app-2xs text-accent-purple-bright" : BTN}">Summary ${open ? "▴" : "▾"}</button></div>${open ? `<div class="border-t border-hairline-soft px-3 pt-3 pb-3.5 pl-12 font-mono text-app-xs leading-relaxed text-ink">${markdown("**Session intent** Add backoff to webhook retries without a new crate.\n\n**Summary** `retry.rs` now waits `backoff(attempt)` before each retry. The webhook tests pass.\n\n**Next steps** Note the change in the README.")}<div class="mt-3 border-t border-dashed border-hairline pt-2.5 text-app-2xs text-dim"><span class="font-semibold text-muted">Kept word for word</span><p class="mt-1 border-l-2 border-accent-cyan/50 py-0.5 pl-2 whitespace-pre-wrap text-muted">${esc(ASK_AGAIN)}</p></div></div>` : ""}</div>`;
+
+async function type(id, text, extra = {}, fast = 16) {
+  await click($("prompt"), id);
+  for (let i = 1; i <= text.length; i++) { setDock({ ...extra, text: text.slice(0, i), caret: true }); await sleep(fast); alive(id); }
+  await sleep(350); alive(id);
+}
+const session = (phase, turns) => ({ title: ASK, ago: "just now", turns, phase, selected: true });
+
+async function play(id) {
+  const p = $("pointer"); p.style.left = "640px"; p.style.top = "820px";
+  mountShell(sessionColumn(), { sessions: OLDER });
+  setDock({});
+  chapter("A turn at work");
+  await sleep(500); alive(id);
+  await type(id, ASK);
+  await click($("send"), id);
+  add(userMessage(ASK, "first"));
+  strip(0, 0);
+  const run = { title: ASK, working: true, activity: "Thinking", elapsed: "1s" };
+  setDock(run);
+  shell({ phase: "Working", doing: ASK, sessions: [session("Working", 1), ...OLDER], context: { used: 9600 } });
+  await sleep(800); alive(id);
+  add(calls([call({ kind: "graph", detail: "retry, worker, backoff", took: "0.3s" })])); shell({ toolCalls: 1, context: { used: 11800 } });
+  await sleep(800); alive(id);
+  add(calls([call({ kind: "read", detail: "src/webhooks/retry.rs", took: "0.1s" })])); shell({ toolCalls: 2, context: { used: 14200 } });
+  setDock({ ...run, activity: "Read src/webhooks/retry.rs", elapsed: "3s" });
+  await sleep(500); alive(id);
+
+  chapter("Steer and queue");
+  await type(id, STEER, run, 10);
+  setDock({ ...run, steering: [STEER] });
+  await sleep(700); alive(id);
+  await type(id, QUEUE, { ...run, steering: [STEER] }, 10);
+  setDock({ ...run, steering: [STEER], queued: [QUEUE] });
+  await sleep(1300); alive(id);
+  setDock({ ...run, queued: [QUEUE], elapsed: "9s" });
+  add(userMessage(STEER, "steer"));
+  await sleep(500); alive(id);
+
+  chapter("The wrong way");
+  add(calls([call({ kind: "edit", verb: "Edit", detail: "Cargo.toml", took: "0.1s", body: editBody("Cargo.toml", ["@@ -18,6 +18,7 @@", " serde = \"1\"", "+backoff = \"0.4\""]) })]));
+  shell({ toolCalls: 3, changes: [{ path: "Cargo.toml", state: "M", added: 1, removed: 0 }], context: { used: 16900 } });
+  await sleep(900); alive(id);
+  add(calls([call({ kind: "edit", verb: "Write", detail: "src/webhooks/backoff.rs", took: "0.1s", body: editBody("src/webhooks/backoff.rs", ["@@ -0,0 +1,3 @@", "+pub fn policy() -> ExponentialBackoff {", "+    ExponentialBackoff::default()", "+}"]) })]));
+  shell({ toolCalls: 4, changes: [{ path: "Cargo.toml", state: "M", added: 1, removed: 0 }, { path: "src/webhooks/backoff.rs", state: "U", added: 24, removed: 0 }], graph: [{ path: "src/webhooks/backoff.rs", state: "U", definitions: 1, uses: 0, usedBy: 1 }], context: { used: 19400 } });
+  await sleep(900); alive(id);
+  add(calls([call({ kind: "shell", detail: "cargo test webhooks", took: "6.8s" })])); shell({ toolCalls: 5, context: { used: 21000 } });
+  await sleep(700); alive(id);
+  add(answer("Retries now wait an exponential backoff from the `backoff` crate, set in `src/webhooks/backoff.rs`."));
+  add(footer("38s", { calls: 5, read: 1, edited: 2, added: 25, removed: 0 }));
+  add(userMessage(QUEUE, "queued"));
+  add(calls([call({ kind: "edit", verb: "Edit", detail: "README.md", took: "0.1s", body: editBody("README.md", ["@@ -40,3 +40,4 @@", "+Failed deliveries retry with exponential backoff (backoff crate)."]) })]));
+  add(footer("6s", { calls: 1, edited: 1, added: 1, removed: 0 }));
+  const three = [{ path: "Cargo.toml", state: "M", added: 1, removed: 0 }, { path: "src/webhooks/backoff.rs", state: "U", added: 24, removed: 0 }, { path: "README.md", state: "M", added: 1, removed: 0 }];
+  setDock({ title: ASK });
+  strip(1200, 23400);
+  shell({ phase: "Finished", toolCalls: 6, changes: three, sessions: [session("Finished", 3), ...OLDER], context: { used: 23400 } });
+  await sleep(1600); alive(id);
+
+  chapter("Rewind to this message");
+  const msg = q('[data-msg="first"]');
+  $("scroll").scrollTop = 0;
+  await pointTo(msg, id, 0.8, 0.5);
+  msg.querySelector("[data-rewind]").classList.replace("opacity-0", "opacity-100");
+  await click(msg.querySelector("[data-rewind] button"), id);
+  msg.querySelector("[data-rewind] > div").insertAdjacentHTML("beforeend", rewindMenu(false));
+  await sleep(1500); alive(id);
+  await click(msg.querySelector('[data-item="both"]'), id);
+  $("rewind-menu").outerHTML = rewindMenu(true);
+  await sleep(1300); alive(id);
+  await click(msg.querySelector('[data-item="approve"]'), id);
+
+  chapter("Back where it started");
+  $("log").innerHTML = `<div class="enter flex items-start justify-between gap-3 font-mono text-app-2xs text-dim"><p class="min-w-0">run: removed 6 messages from "${esc(ASK)}" on; its words are back in the composer; restored 2 files and removed 1 file the agent created</p><button type="button" title="Put the files back as they were before this restore" class="shrink-0 cursor-pointer rounded border border-hairline px-2 py-0.5 text-muted transition hover:bg-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-50">Undo restore</button></div>`;
+  setDock({ title: ASK, text: ASK });
+  shell({ changes: [], graph: [], sessions: [session("Finished", 0), ...OLDER] });
+  await sleep(2000); alive(id);
+  await click($("prompt"), id);
+  setDock({ title: ASK, text: ASK_AGAIN, caret: true });
+  await sleep(800); alive(id);
+  await click($("send"), id);
+  add(userMessage(ASK_AGAIN, "again"));
+  setDock({ ...run, elapsed: "2s" });
+  shell({ phase: "Working", sessions: [session("Working", 1), ...OLDER] });
+  await sleep(700); alive(id);
+  add(calls([call({ kind: "graph", detail: "backoff, retry", took: "0.2s" })])); shell({ toolCalls: 7 });
+  await sleep(800); alive(id);
+  add(calls([call({ kind: "edit", verb: "Edit", detail: "src/webhooks/retry.rs", took: "0.1s", body: editBody("src/webhooks/retry.rs", ["@@ -44,6 +44,7 @@", "     for attempt in 1..=MAX_ATTEMPTS {", "+        sleep(backoff(attempt)).await;", "         match deliver(&client, &hook).await {"]) })]));
+  shell({ toolCalls: 8, changes: [{ path: "src/webhooks/retry.rs", state: "M", added: 1, removed: 0 }], graph: [{ path: "src/webhooks/retry.rs", state: "M", definitions: 4, uses: 2, usedBy: 1 }], context: { used: 27800 } });
+  await sleep(800); alive(id);
+  add(calls([call({ kind: "shell", detail: "cargo test webhooks", took: "4.1s" })])); shell({ toolCalls: 9 });
+  await sleep(600); alive(id);
+  add(answer("The retry worker now waits `backoff(attempt)` before each retry. The helper was already in `retry.rs`, so no crate was added."));
+  add(footer("22s", { calls: 3, edited: 1, added: 1, removed: 0 }));
+  setDock({ title: ASK });
+  strip(4800, 31600);
+  shell({ phase: "Finished", sessions: [session("Finished", 1), ...OLDER], context: { used: 164000 } });
+  await sleep(1500); alive(id);
+
+  chapter("Compact the conversation");
+  await type(id, "/compact", { title: ASK }, 45);
+  await click($("send"), id);
+  add(compacting());
+  setDock({ title: ASK, working: true, activity: "Compacting", elapsed: "2s" });
+  shell({ phase: "Working" });
+  await sleep(2300); alive(id);
+  $("log").lastElementChild.outerHTML = compacted(false);
+  setDock({ title: ASK });
+  shell({ phase: "Finished", context: { used: 23000 } });
+  await sleep(900); alive(id);
+  await click($("summary-btn"), id);
+  $("log").lastElementChild.outerHTML = compacted(true);
+  $("scroll").scrollTop = $("scroll").scrollHeight;
+  await sleep(2700); alive(id);
+
+  chapter("Search earlier sessions");
+  await type(id, PAST, { title: ASK });
+  await click($("send"), id);
+  add(userMessage(PAST, "past"));
+  setDock({ ...run, activity: "Searched sessions for “retry rollout”", elapsed: "1s" });
+  shell({ phase: "Working", sessions: [session("Working", 2), ...OLDER] });
+  await sleep(900); alive(id);
+  add(calls([sessionsCall({ query: "retry rollout", took: "0.4s" })])); shell({ toolCalls: 10, context: { used: 25200 } });
+  await sleep(700); alive(id);
+  add(answer("In **Add webhook retries** (26 days ago), the retry worker shipped behind `WEBHOOK_RETRIES=1`. The flag stayed on in staging for a day, and then it became the default. I can do the same here."));
+  add(footer("9s", { calls: 1 }));
+  setDock({ title: ASK });
+  strip(2100, 33700);
+  shell({ phase: "Finished", sessions: [session("Finished", 2), ...OLDER] });
+  await sleep(5000); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

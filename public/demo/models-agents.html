@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Agent Models Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+<script src="prefs-ui.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const q = (s) => document.querySelector(s);
+let view;
+const paint = (patch = {}) => { Object.assign(view, patch); pfAgentsPaint(view); };
+const agent = (name) => view.agents.find((a) => a.name === name);
+
+async function choose(id, trigger, menu, key) {
+  await click($(trigger), id);
+  paint({ drop: menu, active: null }); await sleep(600); alive(id);
+  await pointTo(q(`[data-opt="${key}"]`), id);
+  paint({ active: key }); await sleep(250); alive(id);
+  await click(q(`[data-opt="${key}"]`), id);
+}
+async function configure(id, name, model) {
+  chapter(`Giving @${name} ${model}`);
+  await click($("agent-picker"), id);
+  paint({ list: true, active: null }); await sleep(1100); alive(id);
+  await click(q(`[data-agent="${name}"]`), id);
+  paint({ list: false, picked: name }); await sleep(1100); alive(id);
+  await click($("chip-model"), id);
+  paint({ chip: "model" }); await sleep(700); alive(id);
+  await choose(id, "agent-provider", "provider", "chatgpt");
+  agent(name).model = ["chatgpt", ""]; paint({ drop: null, active: null }); await sleep(600); alive(id);
+  await choose(id, "agent-model", "model", model);
+  agent(name).model = ["chatgpt", model]; paint({ drop: null, active: null }); await sleep(700); alive(id);
+  await click($("chip-model"), id);
+  paint({ chip: null }); await sleep(500); alive(id);
+  await click(q('[data-act="Save"]'), id);
+  await sleep(1000); alive(id);
+}
+
+async function play(id) {
+  const p = $("pointer"); p.style.left = "640px"; p.style.top = "820px";
+  view = { agents: PF_AGENTS(), picked: null, list: false, chip: null, drop: null, active: null };
+  mountShell(sessionColumn(), { model: "gpt-5", provider: "ChatGPT", modelProject: false, sessions: [{ title: "Webhooks time out in staging. Find out why and fix it.", ago: "3d ago", turns: 1 }, { title: "Rotate the webhook secret", ago: "7d ago", turns: 3 }] });
+  chapter("The Agents screen");
+  await sleep(800); alive(id);
+  await click(q('[aria-label="Manage agents"]'), id);
+  paint(); await sleep(1300); alive(id);
+  await configure(id, "test-writer", "gpt-5-codex");
+  await configure(id, "explorer", "gpt-5-mini");
+  chapter("Each agent on its own model");
+  await click($("agent-picker"), id);
+  paint({ list: true, active: null }); await sleep(3400); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

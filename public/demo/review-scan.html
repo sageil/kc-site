@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Change Scan Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const q = (s) => document.querySelector(s);
+const GROUP = '<div class="flex flex-col py-1">';
+// Turns go above #tail, which holds what the app draws after every turn: the review card, the scan card and the turn's footer.
+function add(html) {
+  const tail = $("tail");
+  const last = tail ? tail.previousElementSibling : $("log").lastElementChild;
+  const grouped = html.startsWith(GROUP) ? html.replace(GROUP, '<div data-calls="1" class="flex flex-col py-1">') : html;
+  if (html.startsWith(GROUP) && last?.dataset.calls) last.insertAdjacentHTML("beforeend", html.slice(GROUP.length, -6));
+  else if (tail) tail.insertAdjacentHTML("beforebegin", grouped);
+  else $("log").insertAdjacentHTML("beforeend", grouped);
+  $("scroll").scrollTop = $("scroll").scrollHeight;
+}
+const swapLast = (html) => { const group = [...$("log").querySelectorAll("[data-calls]")].pop(); group.lastElementChild.outerHTML = html; group.lastElementChild.classList.remove("enter"); };
+const setStrip = (o) => { $("strip-slot").innerHTML = o ? sessionStrip(o) : ""; };
+const FIELD_ROW = "flex w-full cursor-pointer items-baseline gap-2.5 rounded px-2.5 py-1.5 text-left transition";
+
+// The slash-command chips over the prompt box (stream/dock.rs command_list, content.rs COMMANDS).
+const COMMANDS = [
+  ["/providers", "Open provider settings"], ["/settings", "Open the preferences screen"], ["/models", "Choose the model for the active provider"],
+  ["/sessions", "Browse the sessions the transcript holds"], ["/logs", "Read what Koda logged, by category"], ["/metrics", "Read what this session's calls cost"],
+  ["/graph", "Explore who calls what in this project's code"], ["/memory", "Browse, edit and link what the agent remembers"],
+  ["/skills", "Browse, add, install and pick the skills the agent can load"], ["/automations", "Run the project's automations and read what they decided"],
+  ["/autonomous", "Follow the goals, automations and MCP tasks working on their own"], ["/agents", "Make and edit the agents the main agent delegates to"],
+  ["/new", "Start a new session"], ["/shortcuts", "Show the keyboard shortcuts"],
+  ["/review", "Review uncommitted changes, or follow it with a branch or a commit"],
+  ["/review-security", "Review only for security vulnerabilities. Takes the same targets as /review"],
+  ["/review-quality", "Review only for correctness and quality. Takes the same targets as /review"],
+  ["/review-practices", "Review only for best practice. Takes the same targets as /review"],
+  ["/review-rules", "Review only against the project's rules and AGENTS.md. Takes the same targets as /review"],
+  ["/compact", "Compact this session's conversation into a summary"],
+  ["/crew-supervised", "A frontier model plans each task, gives it to a cheaper model and checks the result"],
+  ["/crew-self-managed", "A cheaper model plans the task, does it and checks it, with no frontier model"],
+  ["/themes", "Choose a colour theme, previewed live"],
+];
+const SHORTCUT = { "/settings": "⌘,", "/sessions": "⌘O", "/graph": "⇧⌘G", "/memory": "⇧⌘M", "/automations": "⇧⌘R", "/agents": "⇧⌘A", "/new": "⌘N", "/shortcuts": "⇧⌘/" };
+function commandChips(typed) {
+  const rows = COMMANDS.filter(([name]) => name.startsWith(typed));
+  if (!rows.length) return "";
+  const [name, description] = rows[0];
+  const CHIP = "shrink-0 cursor-pointer rounded-full border px-2.5 py-1 font-mono text-app-xs transition";
+  return `<div class="absolute right-0 bottom-full left-0 z-40 mb-2 flex flex-col gap-2 rounded-lg border border-hairline bg-elevated p-2 elevated-shadow"><div class="koda-no-scrollbar flex gap-1.5 overflow-x-auto" role="listbox" aria-label="Commands" aria-orientation="horizontal">${rows.map(([n], i) => `<button type="button" role="option" aria-selected="${i === 0}" class="${i === 0 ? `${CHIP} border-command bg-command text-canvas` : `${CHIP} border-hairline text-muted hover:text-ink`}">${n}</button>`).join("")}</div><div class="flex min-w-0 items-center gap-2.5 px-1"><span class="shrink-0 font-mono text-app-xs text-ink">${name}</span><span class="min-w-0 grow truncate text-app-2xs text-muted">${description}</span>${SHORTCUT[name] ? `<span class="shrink-0"><kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">${SHORTCUT[name]}</kbd></span>` : ""}</div></div>`;
+}
+
+// A review's parts in the transcript (stream/delegations.rs CompactAgent), in the fleet band (subagents.rs SubagentFleet) and in the inspector.
+const PALETTE = ["cyan", "purple", "emerald", "amber"];
+const TRACK = { cyan: "border border-accent-cyan/25 p-0.5", purple: "border border-accent-purple/25 p-0.5", emerald: "border border-accent-emerald/25 p-0.5", amber: "border border-accent-amber/25 p-0.5" };
+const BAR_FILL = { cyan: "bg-linear-to-r from-accent-cyan to-accent-cyan-bright shadow-sm shadow-accent-cyan", purple: "bg-linear-to-r from-accent-purple to-pink-400 shadow-sm shadow-accent-purple", emerald: "bg-linear-to-r from-accent-emerald to-accent-emerald-bright shadow-sm shadow-accent-emerald", amber: "bg-linear-to-r from-accent-amber to-accent-amber-bright shadow-sm shadow-accent-amber" };
+const PARTS = [
+  { name: "@review-context", desc: "Research the project for the reviewers", acts: ["query_code_graph", "read_file", "thinking"], calls: 11, tok: 18.4, secs: 41 },
+  { name: "@review-security", desc: "Security review", acts: ["read_file", "query_code_graph", "thinking"], calls: 9, tok: 14.2, secs: 52 },
+  { name: "@review-quality", desc: "Correctness and quality review", acts: ["read_file", "thinking", "query_code_graph"], calls: 8, tok: 12.9, secs: 47 },
+  { name: "@review-practices", desc: "Best-practice review", acts: ["read_file", "thinking"], calls: 6, tok: 9.6, secs: 33 },
+  { name: "@review-custom", desc: "Review against the project's rules", acts: ["read_file", "thinking"], calls: 5, tok: 7.8, secs: 29 },
+  { name: "@review-challenge", desc: "Challenge the findings", acts: ["read_file", "thinking"], calls: 7, tok: 11.3, secs: 38 },
+];
+const secs = (n) => (n < 60 ? `${n}s` : `${Math.floor(n / 60)}m ${String(n % 60).padStart(2, "0")}s`);
+const kTok = (k) => `${k.toFixed(1)}k tok`;
+const agentRow = (a, s) => {
+  const running = s.status === "running";
+  const tail = running ? `<span class="min-w-0 truncate text-dim">· ${s.activity}</span><span class="shrink-0 text-accent-cyan-bright">running</span>` : `<span class="shrink-0 text-dim tabular-nums">${secs(s.secs)}</span>`;
+  return `<button type="button" class="flex w-full min-w-0 cursor-pointer items-center gap-2 py-px text-left font-mono text-app-xs leading-relaxed" aria-label="Open ${a.name}: ${a.desc}" title="Open this subagent's run"><span class="shrink-0 text-accent-purple-bright${running ? " animate-pulse" : ""}">${icon("size-3.5", GLYPH.delegate)}</span><span class="shrink-0 font-semibold text-accent-purple-bright">${a.name}</span><span class="min-w-0 truncate text-ink/80" title="${a.desc}">${a.desc}</span><span class="shrink-0 pl-1 text-dim tabular-nums">${s.calls} calls · ${kTok(s.tok)}</span>${tail}</button>`;
+};
+const workflow = (title, st) => `<div class="flex flex-col py-1"><span class="py-px font-mono text-app-xs text-dim">${esc(title)}</span>${PARTS.map((a, i) => [a, st[i]]).filter(([, s]) => s.status !== "waiting").map(([a, s]) => agentRow(a, s)).join("")}</div>`;
+const fleetCard = (a, s, i) => {
+  const tone = PALETTE[i % 4], running = s.status === "running";
+  const fill = running ? "koda-indeterminate w-2/5" : "w-full";
+  return `<div class="flex min-w-[240px] max-w-xs flex-1 flex-col gap-1.5 rounded border p-2 transition ${running ? "border-hairline bg-subtle" : "border-hairline-soft bg-panel"} ${TONES.hover[tone]}" title="${a.desc}"><div class="flex items-center justify-between gap-2 font-mono text-app-2xs"><div class="flex min-w-0 items-center gap-1.5 font-medium ${TONES.text[tone]}"><span class="inline-block size-1.5 shrink-0 rounded-full ${TONES.dot[tone]} ${running ? "animate-pulse" : ""}"></span><span class="truncate">${a.name}</span></div><span class="max-w-[110px] truncate font-mono text-app-3xs text-muted" title="${a.desc}">${a.desc}</span></div><div class="h-1.5 w-full overflow-hidden rounded-full bg-hover ${TRACK[tone]}"><div class="h-full rounded-full ${fill} ${BAR_FILL[tone]}"></div></div><div class="flex items-center justify-between font-mono text-app-3xs text-muted"><span>${s.calls} calls · ${kTok(s.tok)}</span><div class="flex items-center gap-1.5"><button type="button" class="cursor-pointer text-muted transition" aria-label="Inspect ${a.name}">Inspect</button>${running ? `<span class="text-dim/60">•</span><button type="button" class="cursor-pointer text-muted transition hover:text-accent-amber-bright" aria-label="Stop ${a.name}" title="Stop this subagent">Stop</button>` : `<span class="text-dim/60">•</span><span class="text-muted">Done</span>`}</div></div></div>`;
+};
+const arrow = (left) => `<button type="button" class="flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center rounded border border-hairline bg-subtle text-muted shadow-sm transition hover:border-accent-cyan/50 hover:bg-hover hover:text-accent-cyan-bright" title="Scroll fleet ${left ? "left" : "right"}" aria-label="Scroll fleet ${left ? "left" : "right"}">${icon("size-3.5", left ? GLYPH.chevronLeft : GLYPH.chevronRight)}</button>`;
+function showFleet(st) {
+  const shown = PARTS.map((a, i) => [a, st[i], i]).filter(([, s]) => s.status !== "waiting");
+  $("fleet-slot").innerHTML = shown.length ? `<div class="relative flex shrink-0 items-center gap-2 border-b border-hairline bg-panel px-2 py-1.5" aria-label="Subagent fleet">${arrow(true)}<div id="koda-subagent-fleet" class="koda-fleet flex flex-1 items-center gap-3 overflow-x-auto py-1">${shown.map(([a, s, i]) => fleetCard(a, s, i)).join("")}</div>${arrow(false)}</div>` : "";
+  shell({ fleet: shown.map(([a, s, i]) => ({ name: a.name, description: a.desc, tone: PALETTE[i % 4], running: s.status === "running", activity: s.status === "running" ? s.activity : "done", statusTone: "neutral" })) });
+}
+async function runParts(id, st, which, ms, draw) {
+  const start = now();
+  for (const i of which) Object.assign(st[i], { status: "running", activity: "starting", calls: 0, tok: 0 });
+  while (now() - start < ms) {
+    const f = (now() - start) / ms;
+    for (const i of which) {
+      const a = PARTS[i], g = Math.min(1, f * (1 + i * 0.06));
+      st[i].calls = Math.min(a.calls - 1, Math.floor(g * a.calls));
+      st[i].tok = a.tok * g;
+      st[i].activity = g < 0.08 ? "starting" : a.acts[Math.floor((now() - start) / 600 + i) % a.acts.length];
+    }
+    draw();
+    await sleep(300); alive(id);
+  }
+  for (const i of which) Object.assign(st[i], { status: "done", calls: PARTS[i].calls, tok: PARTS[i].tok, secs: PARTS[i].secs });
+  draw();
+}
+
+// The review's answer (koda-core review/render.rs markdown, turn.rs page line) and its card (stream/review.rs ReviewCard).
+const SEV_TONE = { critical: "rose", high: "amber", medium: "indigo", low: "neutral" };
+const DIFF_TONE = (l) => (l.startsWith("+") && !l.startsWith("+++") ? "var(--koda-diff-add)" : l.startsWith("-") && !l.startsWith("---") ? "var(--koda-diff-remove)" : l.startsWith("@@") ? "var(--koda-syntax-function)" : "var(--koda-syntax-comment)");
+const fence = (lines) => `<pre class="overflow-x-auto whitespace-pre rounded border border-hairline bg-canvas p-3 font-mono text-code leading-relaxed">${lines.map((l) => `<span><span style="color: ${DIFF_TONE(l)};">${esc(l)}</span>\n</span>`).join("")}</pre>`;
+const para = (html) => `<p class="whitespace-pre-wrap">${html}</p>`;
+const codeSpan = (t) => `<code class="rounded bg-subtle px-1 font-mono text-accent-cyan-bright">${esc(t)}</code>`;
+function reviewAnswer(review) {
+  const blocks = review.findings.map((f) => `<ol class="flex flex-col gap-1 pl-5 list-decimal" start="${f.id}"><li class="space-y-1">${para(`<strong class="font-semibold">[${f.sev}] ${esc(f.title)}</strong> ${codeSpan(f.place)} (${f.cat})`)}</li></ol>${para(esc(f.body))}${para(`Triggered by: ${esc(f.exploit)}`)}${para(`Recommendation: ${esc(f.rec)}`)}${f.patch ? fence(f.patch) : ""}`).join("");
+  return `<div class="enter flex flex-col gap-2 py-1 font-mono text-app-xs leading-relaxed text-ink">${BAR_ACCENT}<span class="flex items-center gap-1.5 font-bold text-command">${icon("size-3.5", GLYPH.sparkle)}Koda</span><div class="flex min-w-0 flex-col gap-2 wrap-anywhere">${para(`<strong class="font-semibold">Review of ${esc(review.label)}</strong>`)}${para(esc(review.summary))}${blocks}${para(`The full review, with the diff, is at /Users/you/dev/acme-api/.koda/reviews/${review.page}.html.`)}</div>${BAR_ACCENT}</div>`;
+}
+const sevChip = (sev) => `<span class="inline-flex h-[22px] shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-app-2xs tracking-[0.06em] uppercase ${TONES.chip[SEV_TONE[sev]]}"><span class="truncate">${sev}</span></span>`;
+const btn = (label, kind, id, title) => actionButton(label, kind).replace('<button type="button"', `<button type="button"${id ? ` id="${id}"` : ""} aria-label="${label}" title="${title || ""}"`);
+function reviewCard(review) {
+  return `<section class="enter flex flex-col gap-2 rounded-md border border-hairline bg-panel px-3 py-2.5" aria-label="Review findings"><div class="flex items-center justify-between gap-3"><div class="flex min-w-0 flex-col"><span class="truncate text-app-sm font-medium text-ink">Review of ${esc(review.label)}</span><span class="text-app-2xs text-muted">${esc(review.summary)}</span></div>${btn("Open in browser", "secondary", null, "The full review with its diff, as a page on disk")}</div>${review.findings.map((f) => `<div class="flex flex-col gap-1 border-t border-hairline-soft pt-2"><div class="flex items-center gap-2">${sevChip(f.sev)}<span class="min-w-0 truncate text-app-xs text-ink" title="${esc(f.title)}">${f.id}. ${esc(f.title)}</span><span class="ml-auto shrink-0 font-mono text-app-2xs text-dim">${f.place}</span></div><span class="text-app-2xs text-muted">${esc(f.rec)}</span><div class="flex flex-wrap gap-1.5">${f.patch ? btn("Apply suggestion", "primary", `apply-${f.id}`, "Ask the agent to make the suggested change; each edit waits for your approval") : ""}${btn("Fix it for me", "secondary")}${btn("Ask", "secondary", null, "Put a question about this finding in the prompt")}${btn("Dismiss", "secondary")}${btn("Mark fixed", "secondary")}</div></div>`).join("")}</section>`;
+}
+const applyPrompt = (f) => `<div class="enter group relative flex flex-col gap-2 py-1 pr-9 font-mono text-app-xs">${BAR_ACCENT}<div class="flex items-start gap-2"><span class="shrink-0 font-bold text-command">❯</span><div class="flex min-w-0 flex-col gap-1.5 font-semibold text-ink"><div class="flex min-w-0 flex-col gap-2 wrap-anywhere">${para(`Apply the suggested fix for review finding ${f.id} (${esc(f.title)}) at ${f.place}. Make exactly these changes with edit_file, so each one is shown for approval; do not run git apply.`)}${fence(f.patch)}</div></div></div>${BAR_ACCENT}</div>`;
+const statusBadge = (html) => shell({ status: [html] });
+const badge = (open, blocking) => `<button type="button" class="flex cursor-pointer items-center gap-1 rounded px-1.5 transition hover:bg-hover hover:text-ink" title="Open the latest review's report">${icon(blocking ? "size-3 shrink-0 text-accent-rose" : "size-3 shrink-0 text-accent-amber", GLYPH.search)}<span class="tabular-nums">${open} open findings</span>${blocking ? `<span class="text-dim">·</span><span class="tabular-nums text-accent-rose">${blocking} critical or high</span>` : ""}</button>`;
+const ASK = "Sign each webhook delivery with an HMAC header.";
+const SHA = "3f9c2a17e4b8d05c6a1f92e7b3d48c05a6e1f293";
+const FILE = "src/webhooks/deliver.rs";
+const SECRET = "whsec_3q8ZrT1vK9mXw2LpN6bYc4HdF7jGs0Ua";
+const OLDER = [{ title: "Rotate the webhook secret", ago: "3d ago", turns: 3 }, { title: "Add webhook retries", ago: "5d ago", turns: 8 }];
+const EDITED = ["@@ -6,0 +7,1 @@", `+const SIGNING_SECRET: &str = "${SECRET}";`, "@@ -39,1 +40,3 @@", "-    let request = build(endpoint, body)?;", "+    let signature = hmac_sha256(SIGNING_SECRET.as_bytes(), body);", "+    let mut request = build(endpoint, body)?;", '+    request.headers_mut().insert("x-acme-signature", signature.parse()?);'];
+const LEAK = {
+  label: `changes against ${SHA}`,
+  summary: "1 finding, 1 critical or high.",
+  page: "b93d0f6e-2a7c-4e15-8d4b-61f0c2a9e7d8",
+  findings: [{ id: 1, sev: "critical", title: "Read the webhook signing secret from config instead of hard-coding it", place: `${FILE}:7`, cat: "Security · CWE-798",
+    body: "This change writes the webhook signing secret as a string literal at deliver.rs:7. The secret is committed with the code and is the same in every environment. The secret scanner flagged the same line.",
+    exploit: "anyone who can read the repository or its history can sign a webhook that receivers accept as one from acme-api.",
+    rec: "Read the secret from config.webhook_secret, and rotate it, because it is now in the repository history.",
+    patch: [`--- a/${FILE}`, `+++ b/${FILE}`, "@@ -7 +6,0 @@", `-const SIGNING_SECRET: &str = "${SECRET}";`, "@@ -41 +40 @@", "-    let signature = hmac_sha256(SIGNING_SECRET.as_bytes(), body);", "+    let signature = hmac_sha256(config.webhook_secret.as_bytes(), body);"] }],
+};
+const scanCard = () => `<section class="enter flex flex-col gap-2 rounded-md border px-3 py-2.5 border-accent-amber/40 bg-accent-amber/5" aria-label="Scan of this turn's changes"><div class="flex items-center justify-between gap-3"><span class="text-app-xs text-ink">Scanned 1 changed file: 1 possible secret and 0 vulnerable dependencies.</span>${btn("Review these changes", "secondary", "review-these", "Run the full review: security, quality, best practice and your rules")}</div><div class="flex items-baseline gap-2 font-mono text-app-2xs">${sevChip("secret").replace(TONES.chip.neutral, TONES.chip.amber)}<span class="shrink-0 text-ink/80">${FILE}:7</span><span class="min-w-0 truncate text-muted" title="generic-api-key: Detected a Generic API Key, potentially exposing access to various services and sensitive operations.">generic-api-key: Detected a Generic API Key, potentially exposing access to various services and sensitive operations.</span></div></section>`;
+const scanBadge = `<button type="button" class="flex cursor-pointer items-center gap-1 rounded px-1.5 transition hover:bg-hover hover:text-ink" title="Open the session whose changes the scanners flagged">${icon("size-3 shrink-0 text-accent-amber", GLYPH.search)}<span class="tabular-nums">1 scan hits</span></button>`;
+const setDock = (o) => { $("dock-slot").innerHTML = dock({ runsOn: "hostApply", ...o }); };
+
+async function play(id) {
+  const pointer = $("pointer"); pointer.style.left = "640px"; pointer.style.top = "820px";
+  mountShell(sessionColumn(), { sessions: OLDER, more: 0 });
+  $("strip-slot").insertAdjacentHTML("afterend", '<div id="fleet-slot"></div>');
+  $("log").innerHTML = '<p class="text-app-sm text-dim" role="status" aria-label="No session has run yet.">No session has run yet.</p>';
+  setDock({});
+
+  chapter("Ask for a change");
+  await sleep(1000); alive(id);
+  await click($("prompt"), id);
+  for (let i = 1; i <= ASK.length; i++) { setDock({ text: ASK.slice(0, i), caret: true }); await sleep(30); alive(id); }
+  await sleep(500); alive(id);
+  await click($("send"), id);
+
+  chapter("The agent edits directly");
+  const S = { title: ASK, ago: "just now", turns: 1, phase: "Working", selected: true };
+  $("log").innerHTML = "";
+  add(said(ASK));
+  setStrip({ title: ASK, turn: 0, session: 0 });
+  setDock({ title: ASK, working: true, activity: `Read ${FILE}`, elapsed: "2s" });
+  shell({ phase: "Working", doing: ASK, sessions: [S, ...OLDER], context: { used: 7400 } });
+  add(calls([call({ kind: "read", detail: FILE, status: "running" })]));
+  shell({ toolCalls: 1 });
+  await sleep(900); alive(id);
+  swapLast(call({ kind: "read", detail: FILE, took: "0.2s" }));
+  add(calls([call({ kind: "edit", verb: "Edit", detail: FILE, status: "running" })]));
+  setDock({ title: ASK, working: true, activity: `Edit ${FILE}`, elapsed: "6s" });
+  shell({ toolCalls: 2 });
+  await sleep(1100); alive(id);
+  swapLast(call({ kind: "edit", verb: "Edit", detail: FILE, took: "0.1s", body: editBody(FILE, EDITED) }));
+  shell({ changes: [{ path: FILE, state: "M", added: 4, removed: 1 }], graph: [{ path: FILE, state: "M", definitions: 7, uses: 3, usedBy: 2 }], context: { used: 10900 } });
+  await sleep(1200); alive(id);
+  add(answer("Each delivery now carries an `x-acme-signature` header: an HMAC-SHA256 of the body. `src/webhooks/deliver.rs` signs it with `SIGNING_SECRET`."));
+
+  chapter("The secret scan");
+  add(`<div id="tail" class="contents">${scanCard()}${footer("38s", { calls: 2, read: 1, edited: 1, added: 4, removed: 1 })}</div>`);
+  setDock({ title: ASK });
+  setStrip({ title: ASK, turn: 11600, session: 11600, hit: "62.3%" });
+  shell({ phase: "Finished", sessions: [{ ...S, phase: "Finished" }, ...OLDER], status: [scanBadge] });
+  await sleep(2800); alive(id);
+  await click($("review-these"), id);
+
+  chapter("Review the change");
+  $("tail").lastElementChild.remove();
+  add(said(`/review ${SHA}..`));
+  setDock({ title: ASK, working: true, activity: "Thinking", elapsed: "1s" });
+  shell({ phase: "Working", sessions: [{ ...S, turns: 2 }, ...OLDER] });
+  await sleep(900); alive(id);
+  const st = PARTS.map(() => ({ status: "waiting", activity: "starting", calls: 0, tok: 0, secs: 0 }));
+  add('<div id="wf"></div>');
+  const draw = () => {
+    $("wf").innerHTML = workflow(`Review of ${LEAK.label}`, st);
+    showFleet(st);
+    $("scroll").scrollTop = $("scroll").scrollHeight;
+  };
+  await runParts(id, st, [0], 1800, draw);
+  await runParts(id, st, [1, 2, 3, 4], 2400, draw);
+  await runParts(id, st, [5], 1600, draw);
+  await sleep(400); alive(id);
+
+  chapter("The finding");
+  add(reviewAnswer(LEAK));
+  $("tail").innerHTML = reviewCard(LEAK) + scanCard() + footer("4m 12s");
+  setDock({ title: ASK });
+  setStrip({ title: ASK, turn: 29400, session: 41000, hit: "71.8%" });
+  shell({ phase: "Finished", sessions: [{ ...S, turns: 2, phase: "Finished" }, ...OLDER], context: { used: 18300 }, status: [badge(1, 1), scanBadge] });
+  const sc = $("scroll");
+  sc.scrollTop += ($("apply-1").getBoundingClientRect().top - sc.getBoundingClientRect().top) / ($("stage").getBoundingClientRect().width / 1280) - 160;
+  await sleep(2400); alive(id);
+
+  chapter("Apply the fix");
+  await pointTo($("apply-1"), id);
+  await sleep(4200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

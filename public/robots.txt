@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /demo/
+Disallow: /icons/
+Sitemap: https://kodacode.dev/sitemap.xml

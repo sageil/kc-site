@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Schema Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<style>
+  .koda-schema-edge { transition: opacity .45s ease, stroke-width .2s; }
+  .edge-wait { opacity: 0 !important; }
+  .koda-schema-node { transition: transform 620ms cubic-bezier(.2, .8, .2, 1), opacity 300ms ease; }
+  .koda-schema-node.koda-arriving { opacity: 0; }
+  .koda-schema-edge.koda-shown { opacity: 1 !important; stroke-width: 2.4; }
+  .keycap { position: absolute; left: 50%; bottom: 40px; z-index: 65; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid var(--koda-hairline); background: color-mix(in srgb, var(--koda-elevated) 92%, transparent); box-shadow: 0 12px 30px rgb(0 0 0 / .4); font: 600 13px var(--font-mono); color: var(--koda-ink); }
+  .keycap kbd { min-width: 22px; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--koda-hairline); background: var(--koda-canvas); text-align: center; font: inherit; }
+  .keycap span { font-weight: 400; color: var(--koda-muted); }
+</style>
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div class="relative min-h-0 grow">
+    <div id="app" class="h-full"></div>
+    <div id="graph-screen" class="absolute inset-0 z-50 flex flex-col bg-canvas outline-none" data-koda-graph="1" style="display:none">
+      <header class="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-panel px-4">
+        <div class="flex min-w-0 items-center gap-2">
+          <span id="h-glyph"></span>
+          <h1 class="shrink-0 font-mono text-app-xs font-bold text-ink">Code graph</h1>
+          <span id="caption" class="truncate text-app-xs text-muted"></span>
+        </div>
+        <div class="flex shrink-0 items-center gap-1.5">
+          <div id="views" class="flex gap-0.5 rounded-lg border border-hairline bg-canvas p-0.5" role="radiogroup"></div>
+          <button type="button" class="flex w-72 cursor-text items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 py-1 text-app-2xs text-dim transition hover:border-command/50"><span id="search-glyph"></span><span class="grow text-left">Search symbols and files</span><kbd class="rounded border border-hairline bg-canvas px-1 py-0.5 font-mono text-app-2xs text-muted">⌘K</kbd></button>
+          <button id="code-toggle" type="button" title="Show or hide the code (c)" aria-pressed="true" class="cursor-pointer rounded-md border border-command/40 bg-command/10 p-1.5 text-command transition"></button>
+          <button id="close" type="button" class="flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition border-hairline bg-subtle text-ink/80 hover:bg-hover hover:text-ink"><span id="close-glyph"></span>Close</button>
+          <button type="button" aria-label="Restore the screen" title="Restore (or double-click the title bar)" class="flex size-6 cursor-pointer items-center justify-center rounded text-muted transition hover:bg-hover hover:text-ink"><span id="restore-glyph"></span></button>
+        </div>
+      </header>
+      <div class="relative flex min-h-0 grow overflow-hidden">
+        <aside id="table-list" class="flex w-64 shrink-0 flex-col border-r border-hairline bg-panel" style="display:none"></aside>
+        <section class="relative flex min-w-0 grow flex-col overflow-hidden">
+          <div id="toolbar" class="relative z-20 shrink-0" style="display:none"></div>
+          <div class="relative flex min-h-0 grow flex-col">
+            <div id="canvas-box" class="koda-graph-canvas relative min-h-0 min-w-0 grow cursor-grab overflow-hidden">
+              <svg class="absolute inset-0 size-full select-none font-mono"><defs><linearGradient id="koda-graph-focus" x1="0" x2="1"><stop offset="0" stop-color="var(--koda-accent-indigo-bright)"/><stop offset="1" stop-color="var(--koda-accent-purple-bright)"/></linearGradient></defs><g id="cam" class="koda-glide"><g id="captions"></g><g id="edges"></g><g id="particles"></g><g id="nodes"></g></g></svg>
+              <div class="absolute right-3 bottom-3 flex flex-col overflow-hidden rounded-md border border-hairline bg-panel shadow-lg shadow-black/30">
+                <button type="button" title="Zoom in" class="flex size-8 cursor-pointer items-center justify-center font-mono text-app-sm text-muted transition hover:bg-hover hover:text-ink">+</button>
+                <button type="button" title="Zoom out" class="flex size-8 cursor-pointer items-center justify-center border-t border-hairline font-mono text-app-sm text-muted transition hover:bg-hover hover:text-ink">−</button>
+                <button type="button" title="Fit to screen" class="flex h-8 cursor-pointer items-center justify-center border-t border-hairline px-1 font-mono text-app-3xs text-muted uppercase transition hover:bg-hover hover:text-ink">Fit</button>
+              </div>
+              <div id="zoom" class="pointer-events-none absolute bottom-3 left-3 rounded bg-panel/80 px-2 py-1 font-mono text-app-3xs text-dim"></div>
+            </div>
+            <div id="keys"></div>
+            <div id="hud"></div>
+            <div id="text-view"></div>
+          </div>
+        </section>
+        <aside id="table-panel" class="flex w-90 shrink-0 flex-col overflow-hidden border-l border-hairline bg-panel" style="display:none"></aside>
+      </div>
+    </div>
+    <div id="keycap"></div>
+  </div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+
+const VIEWS = ["Symbol", "Flow", "Files", "Map", "Schema"];
+const DOTS = ["bg-accent-cyan", "bg-accent-indigo", "bg-accent-purple"];
+const FILLS = ["fill-accent-cyan", "fill-accent-indigo", "fill-accent-purple"];
+const SETS = [["migrations", "SQL"], ["prisma", "SQL"], ["src/audit", "MongoDB"]];
+const BOX_W = 210, HEAD = 28, ROW_H = 18;
+const SCHEMA = [
+  { name: "accounts", set: 0, x: 0, y: 150, cols: [["id", "bigint", "PK"], ["name", "text"], ["plan", "text"], ["created_at", "timestamptz"]] },
+  { name: "api_keys", set: 0, x: -20, y: 400, cols: [["id", "bigint", "PK"], ["account_id", "bigint", "FK"], ["hash", "text"], ["last_used", "timestamptz?"]] },
+  { name: "webhooks", set: 0, x: 290, y: 90, cols: [["id", "bigint", "PK"], ["account_id", "bigint", "FK"], ["url", "text"], ["secret", "text"], ["active", "bool"]] },
+  { name: "webhook_deliveries", set: 0, x: 580, y: 40, cols: [["id", "bigint", "PK"], ["webhook_id", "bigint", "FK"], ["event_id", "uuid"], ["status", "smallint"], ["attempts", "int"], ["last_error", "text?"]] },
+  { name: "delivery_attempts", set: 0, x: 870, y: 0, cols: [["id", "bigint", "PK"], ["delivery_id", "bigint", "FK"], ["status", "smallint"], ["at", "timestamptz"]] },
+  { name: "events", set: 1, x: 580, y: 320, cols: [["id", "uuid", "PK"], ["account_id", "bigint?", "FK"], ["kind", "text"], ["payload", "jsonb"]] },
+  { name: "audit_log", set: 2, x: 290, y: 400, note: "collection", cols: [["_id", "ObjectId", "PK"], ["account_id", "ObjectId"], ["webhook_id", "ObjectId"], ["action", "string"]] },
+];
+const VIEW = { name: "delivery_stats", x: 870, y: 230, reads: [3, 4] };
+const LINKS = [
+  { from: 1, to: 0, col: "account_id", kind: "required" },
+  { from: 2, to: 0, col: "account_id", kind: "required" },
+  { from: 3, to: 2, col: "webhook_id", kind: "required" },
+  { from: 4, to: 3, col: "delivery_id", kind: "required" },
+  { from: 5, to: 0, col: "account_id", kind: "nullable" },
+  { from: 3, to: 5, col: "event_id", kind: "implied" },
+  { from: 6, to: 0, col: "account_id", kind: "virtual" },
+  { from: 6, to: 2, col: "webhook_id", kind: "lookup" },
+];
+const EDGE_CLASS = { required: "koda-schema-edge", nullable: "koda-schema-edge koda-nullable", implied: "koda-schema-edge koda-implied", virtual: "koda-schema-edge koda-reverse", lookup: "koda-schema-edge koda-lookup", reads: "koda-schema-edge koda-reads" };
+const KEY_ROWS = [["required", "required"], ["nullable", "nullable"], ["implied", "implied"], ["virtual", "virtual"], ["lookup", "$lookup in code"], ["reads", "view reads"]];
+const at = (name) => SCHEMA.findIndex((t) => t.name === name);
+const PATH = [at("webhook_deliveries"), at("webhooks"), at("accounts")];
+const PATH_EDGES = [2, 1];
+const SQL = ["SELECT * FROM webhook_deliveries", "JOIN webhooks ON webhooks.id = webhook_deliveries.webhook_id", "JOIN accounts ON accounts.id = webhooks.account_id;"];
+const SQL_IMPLIED = ["SELECT * FROM webhook_deliveries", "JOIN events ON events.id = webhook_deliveries.event_id", "JOIN accounts ON accounts.id = events.account_id;"];
+
+const MODULES = [["src/http", 0, -150, 38, 3, 2], ["src/cli", 0, 150, 14, 2, 0], ["src/webhooks", 150, 0, 27, 3, 4], ["src/parser", 300, -150, 22, 3, 3], ["src/db", 300, 150, 19, 3, 6]];
+const MODULE_LINKS = [[0, 2], [1, 2], [2, 3], [2, 4], [0, 4]];
+
+const ui = {};
+const geo = (t) => ({ x: t.x, y: t.y, w: BOX_W, h: HEAD + t.cols.length * ROW_H + 8 });
+const viewGeo = () => ({ x: VIEW.x, y: VIEW.y, w: BOX_W, h: HEAD + 26 });
+
+function header() {
+  $("views").innerHTML = VIEWS.map((v) => `<button type="button" role="radio" data-view="${v}" aria-checked="${v === ui.view}" class="${v === ui.view ? "flex-1 rounded bg-command/15 ring-1 ring-inset ring-command/40 px-2.5 py-1 text-app-2xs text-ink" : "flex-1 rounded px-2.5 py-1 text-app-2xs text-dim transition hover:text-muted"}">${v}</button>`).join("");
+  $("caption").textContent = ui.view === "Schema" ? `${SCHEMA.length} tables · ${LINKS.length} relations` : "14 files · 120 symbols · 5 folders";
+}
+function fit(box) {
+  const view = $("canvas-box"), [w, h] = [view.clientWidth, view.clientHeight];
+  const scale = Math.min(Math.max(Math.min(w / box[2], h / box[3]), 0.08), 1.6) * 0.92;
+  $("cam").style.transformOrigin = "0 0";
+  $("cam").style.transform = `translate(${((w - box[2] * scale) / 2 - box[0] * scale).toFixed(2)}px, ${((h - box[3] * scale) / 2 - box[1] * scale).toFixed(2)}px) scale(${scale.toFixed(4)})`;
+  $("zoom").textContent = `${Math.round(scale * 100)}% · scroll to pan · pinch or ⌘-scroll to zoom`;
+}
+
+function mapScene() {
+  $("edges").innerHTML = MODULE_LINKS.map(([a, b]) => {
+    const [, ya, xa] = MODULES[a], [, yb, xb] = MODULES[b];
+    return `<path class="koda-edge koda-flow" stroke="var(--koda-accent-indigo-bright)" stroke-width="2" d="M${xa},${ya + 32} C${xa},${(ya + yb) / 2 + 16} ${xb},${(ya + yb) / 2 + 16} ${xb},${yb - 32}"/>`;
+  }).join("");
+  $("nodes").innerHTML = MODULES.map(([id, y, x, symbols, files, dependents]) => {
+    const w = 200 + 60 * Math.sqrt(symbols / 38);
+    return `<g class="koda-node koda-kind-module" style="transform: translate(${x - w / 2}px, ${y - 32}px)"><rect class="koda-card" width="${w}" height="64" rx="12"/><rect class="koda-kind-fill" x="0" y="10" width="3" height="44" rx="1.5"/><circle class="koda-kind-fill" cx="20" cy="32" r="5" opacity="0.9"/><text x="36" y="29" font-size="12.5" font-weight="600" class="fill-ink">${id}</text><text x="36" y="44" font-size="11" class="fill-dim">${symbols} symbols · ${files} files · ${dependents} depend on it</text></g>`;
+  }).join("");
+  $("captions").innerHTML = `<text x="0" y="-60" text-anchor="middle" font-size="10.5" letter-spacing="1.2" class="fill-dim uppercase">entry points</text><text x="0" y="370" text-anchor="middle" font-size="10.5" letter-spacing="1.2" class="fill-dim uppercase">foundations</text>`;
+  $("particles").innerHTML = "";
+  fit([-340, -100, 680, 500]);
+}
+
+function side(a, b) {
+  if (Math.abs(a.x - b.x) < 60) return [[a.x, "left"], [b.x, "left"]];
+  return a.x > b.x ? [[a.x, "left"], [b.x + b.w, "right"]] : [[a.x + a.w, "right"], [b.x, "left"]];
+}
+function edgePath(link) {
+  const t = SCHEMA[link.from], ga = geo(t), gb = geo(SCHEMA[link.to]);
+  const row = t.cols.findIndex(([c]) => c === link.col);
+  const [[x0, s0], [x1, s1]] = side(ga, gb);
+  const y0 = ga.y + HEAD + row * ROW_H + 9, y1 = gb.y + HEAD / 2;
+  const bend = (s) => (s === "left" ? -70 : 70);
+  return `M${x0},${y0} C${x0 + bend(s0)},${y0} ${x1 + bend(s1)},${y1} ${x1},${y1}`;
+}
+function readsPath(table) {
+  const g = geo(SCHEMA[table]), v = viewGeo();
+  const [[x0, s0], [x1, s1]] = side(v, g);
+  const bend = (s) => (s === "left" ? -60 : 60);
+  return `M${x0},${v.y + HEAD / 2} C${x0 + bend(s0)},${v.y + HEAD / 2} ${x1 + bend(s1)},${g.y + HEAD / 2} ${x1},${g.y + HEAD / 2}`;
+}
+function edgeState(index, link) {
+  if (ui.path) return PATH_EDGES.includes(index) ? "koda-path" : "koda-faded";
+  if (ui.kind) return link.kind === ui.kind ? "koda-shown" : "koda-faded";
+  const focus = ui.hover ?? ui.table;
+  if (focus == null) return "";
+  if (link.from === focus) return "koda-out";
+  if (link.to === focus) return "koda-in";
+  return "koda-faded";
+}
+function near(i) {
+  if (ui.path) return PATH.includes(i);
+  if (ui.kind) return LINKS.some((l) => l.kind === ui.kind && (l.from === i || l.to === i)) || (ui.kind === "reads" && VIEW.reads.includes(i));
+  const focus = ui.hover ?? ui.table;
+  return focus == null || focus === i || LINKS.some((l) => (l.from === focus && l.to === i) || (l.to === focus && l.from === i));
+}
+function boxMarkup(t, i) {
+  const g = geo(t), sel = ui.table === i;
+  const head = `M 0 9 a 9 9 0 0 1 9 -9 h ${g.w - 18} a 9 9 0 0 1 9 9 v ${HEAD - 9} h ${-g.w} z`;
+  const rows = t.cols.map(([c, k, tag], r) => {
+    const y = HEAD + r * ROW_H + 13;
+    return `<text x="12" y="${y}" font-size="10.5" class="fill-ink">${c}</text>${tag ? `<text x="${g.w - 8 - k.length * 6 - 12}" y="${y}" text-anchor="end" font-size="9" class="${tag === "PK" ? "fill-accent-amber-bright" : "fill-accent-cyan-bright"}">${tag}</text>` : ""}<text x="${g.w - 8}" y="${y}" text-anchor="end" font-size="9.5" class="fill-dim">${k}</text>`;
+  }).join("");
+  return `<title>${t.name}</title><rect class="koda-schema-box" width="${g.w}" height="${g.h}" rx="9"/><path class="koda-schema-head" d="${head}"/><rect class="${FILLS[t.set]}" y="7" width="3" height="${HEAD - 14}" rx="1.5"/><text x="12" y="18" font-size="11.5" font-weight="700" class="fill-ink">${t.name}</text>${t.note ? `<text x="${g.w - 8}" y="18" text-anchor="end" font-size="9.5" class="fill-dim">${t.note}</text>` : ""}${rows}`;
+}
+function viewMarkup() {
+  const v = viewGeo();
+  return `<rect class="koda-schema-box" width="${v.w}" height="${v.h}" rx="9"/><text x="12" y="18" font-size="11.5" font-weight="700" class="fill-ink">${VIEW.name}</text><text x="${v.w - 8}" y="18" text-anchor="end" font-size="9.5" class="fill-accent-purple">view</text><text x="12" y="${HEAD + 13}" font-size="10" class="fill-accent-purple">reads webhook_deliveries, delivery_…</text>`;
+}
+function schemaScene({ arriving = false, waiting = false } = {}) {
+  let edges = "", particles = "";
+  LINKS.forEach((l, i) => {
+    edges += `<path id="schema-edge-${i}" class="${EDGE_CLASS[l.kind]} ${edgeState(i, l)} ${waiting ? "edge-wait" : ""}" d="${edgePath(l)}"/>`;
+    if (ui.path && PATH_EDGES.includes(i)) particles += `<circle class="koda-particle" r="3.4" fill="var(--koda-accent-cyan-bright)" style="color: var(--koda-accent-cyan-bright)"><animateMotion dur="1.6s" repeatCount="indefinite" begin="${PATH_EDGES.indexOf(i) * 0.8}s"><mpath href="#schema-edge-${i}"/></animateMotion></circle>`;
+  });
+  for (const r of VIEW.reads) {
+    const lit = ui.kind === "reads" ? "koda-shown" : ui.kind || ui.path || ((ui.hover ?? ui.table) != null && !VIEW.reads.includes(ui.hover ?? ui.table)) ? "koda-faded" : "";
+    edges += `<path class="${EDGE_CLASS.reads} ${lit} ${waiting ? "edge-wait" : ""}" d="${readsPath(r)}"/>`;
+  }
+  $("edges").innerHTML = edges;
+  $("particles").innerHTML = particles;
+  $("captions").innerHTML = "";
+  const host = $("nodes");
+  if (!host.querySelector("[data-table]")) host.innerHTML = "";
+  SCHEMA.forEach((t, i) => {
+    let g = host.querySelector(`[data-table="${i}"]`);
+    if (!g) { g = svgEl("g", { "data-table": i }); host.append(g); }
+    const box = geo(t);
+    g.setAttribute("class", `koda-schema-node cursor-pointer ${ui.table === i ? "koda-sel" : ""} ${arriving ? "koda-arriving" : ""}`);
+    g.setAttribute("style", `transform: translate(${arriving ? 450 - box.w / 2 : box.x}px, ${arriving ? 200 : box.y}px); opacity: ${arriving ? 0 : near(i) ? 1 : 0.3}`);
+    g.innerHTML = boxMarkup(t, i);
+  });
+  let v = host.querySelector("[data-view-node]");
+  if (!v) { v = svgEl("g", { "data-view-node": "1" }); host.append(v); }
+  const viewNear = ui.kind === "reads" || (!ui.kind && !ui.path && ((ui.hover ?? ui.table) == null || VIEW.reads.includes(ui.hover ?? ui.table)));
+  v.setAttribute("class", "koda-schema-node koda-view cursor-pointer");
+  v.setAttribute("style", `transform: translate(${arriving ? 450 - BOX_W / 2 : VIEW.x}px, ${arriving ? 200 : VIEW.y}px); opacity: ${arriving ? 0 : viewNear ? 1 : 0.3}`);
+  v.innerHTML = viewMarkup();
+  fit([-120, -30, 1240, 560]);
+}
+
+function tableList() {
+  const groups = SETS.map(([folder, store], set) => {
+    const rows = SCHEMA.map((t, i) => [t, i]).filter(([t]) => t.set === set).sort(([a], [b]) => a.name.localeCompare(b.name));
+    const views = set === 0 ? `<button type="button" class="flex w-full cursor-pointer items-center gap-2 py-1 pr-3 pl-7 text-left transition hover:bg-hover"><span class="min-w-0 grow truncate font-mono text-app-xs text-ink">${VIEW.name}</span><span class="shrink-0 rounded border px-1 font-mono text-app-3xs border-accent-purple/40 text-accent-purple">view</span><span class="shrink-0 font-mono text-app-3xs text-dim">2</span></button>` : "";
+    return `<div class="flex items-center gap-2 px-3 pt-3.5 pb-1.5 text-app-2xs font-semibold text-ink"><span class="size-2 shrink-0 rounded-full ${DOTS[set]}"></span><span class="truncate">${folder}</span><span class="shrink-0 font-normal text-dim">${store}</span></div>${rows.map(([t, i]) => `<button type="button" data-row="${i}" class="${ui.table === i ? "flex w-full items-center gap-2 bg-accent-cyan/14 py-1 pr-3 pl-7 text-left" : "flex w-full cursor-pointer items-center gap-2 py-1 pr-3 pl-7 text-left transition hover:bg-hover"}"><span class="min-w-0 grow truncate font-mono text-app-xs text-ink">${t.name}</span><span class="shrink-0 font-mono text-app-3xs text-dim">${t.cols.length}</span></button>`).join("")}${views}`;
+  }).join("");
+  $("table-list").innerHTML = `<div class="flex h-10 shrink-0 items-center gap-2 border-b border-hairline px-3">${icon("size-3.5 shrink-0 text-dim", GLYPH.search)}<span class="min-w-0 grow font-mono text-app-xs text-dim">Find a table…  /</span></div><div class="min-h-0 grow overflow-y-auto pb-3">${groups}</div>`;
+}
+const SEG = "flex rounded-md bg-subtle p-0.5", SEG_ON = "cursor-pointer rounded px-2.5 py-1 text-app-2xs bg-elevated text-ink", SEG_OFF = "cursor-pointer rounded px-2.5 py-1 text-app-2xs text-muted transition hover:text-ink";
+const BTN = "flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline px-2.5 py-1 text-app-2xs text-muted transition hover:border-accent-cyan/40 hover:text-ink";
+const BTN_ON = "flex cursor-pointer items-center gap-1.5 rounded-md border border-accent-cyan/55 bg-accent-cyan/10 px-2.5 py-1 text-app-2xs text-accent-cyan-bright";
+const LOOKS = ["Map", "Mermaid", "DBML", "Graphviz"];
+function toolbar() {
+  const text = ui.look !== "Map";
+  const middle = text
+    ? `<div class="${SEG}" title="What goes into the text">${["Visible", "Current path", "Selected + neighbours"].map((n) => `<button type="button" data-scope="${n}" class="${n === ui.scope ? SEG_ON : SEG_OFF}">${n}</button>`).join("")}</div>`
+    : `<div class="${SEG}" title="What each table shows">${["Auto", "Names", "Keys", "All fields"].map((n, i) => `<button type="button" class="${i ? SEG_OFF : SEG_ON}">${n}</button>`).join("")}</div><button type="button" class="${BTN}">Show<span class="text-dim">${SCHEMA.length + 1}</span></button>`;
+  const trailing = text
+    ? `<button type="button" class="${BTN_ON}">Source</button><button type="button" class="${BTN}">Copy</button><button type="button" class="${BTN_ON}">Save…</button>`
+    : `<button id="path-btn" type="button" title="Find how two tables join (p)" class="${ui.pop ? BTN_ON : BTN}">↝ Path to…</button><button type="button" class="${BTN}">Health<span class="font-mono text-app-3xs text-dim">2</span></button>`;
+  $("toolbar").innerHTML = `<div class="flex flex-wrap items-center gap-2 border-b border-hairline-soft bg-panel/85 px-3 py-2"><div class="${SEG}" title="Show the schema as Koda's map or as Mermaid, DBML or Graphviz (1–4)">${LOOKS.map((n) => `<button type="button" data-look="${n}" class="${n === ui.look ? SEG_ON : SEG_OFF}">${n}</button>`).join("")}</div>${middle}<span class="grow"></span>${trailing}</div>${ui.pop ? pathPop() : ""}`;
+}
+function pathPop() {
+  const found = ui.from != null && ui.to != null;
+  const rows = !found ? [] : ui.implied ? [[["webhook_id", "webhooks"], ["account_id", "accounts"]], [["event_id", "events"], ["account_id", "accounts"]]] : [[["webhook_id", "webhooks"], ["account_id", "accounts"]]];
+  const hint = !found ? "Pick the two tables to join." : `Found ${rows.length} path${rows.length === 1 ? "" : "s"}, shortest first.`;
+  const pick = (value) => `<div class="relative min-w-0 grow"><button type="button" class="flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded border border-hairline bg-subtle px-2.5 py-1 text-left font-mono text-app-2xs outline-none transition hover:bg-hover"><span class="${value ? "grow truncate font-semibold text-ink" : "grow truncate text-dim"}">${value || "Pick a table"}</span>${icon("size-2.5 shrink-0 text-muted", GLYPH.chevronDown)}</button></div>`;
+  return `<div id="path-pop" class="absolute top-full right-3 z-30 mt-1.5 flex max-h-[70vh] w-[470px] flex-col overflow-hidden rounded-xl border border-hairline bg-panel shadow-2xl shadow-black/50">
+    <div class="flex items-center gap-2 border-b border-hairline-soft px-3 py-2.5 text-app-xs font-semibold text-ink">↝ Join path<span class="grow"></span><button type="button" class="flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition border-hairline bg-subtle text-ink/80 hover:bg-hover hover:text-ink">${icon("size-3.5 shrink-0", GLYPH.close)}Close</button></div>
+    <div class="min-h-0 overflow-y-auto px-3 py-2.5">
+      <div class="mb-2 flex items-center gap-2 text-app-2xs text-muted"><span class="w-16 shrink-0">From</span>${pick(ui.from != null ? SCHEMA[ui.from].name : "")}</div>
+      <div class="mb-2 flex items-center gap-2 text-app-2xs text-muted"><span class="w-16 shrink-0">To</span>${pick(ui.to != null ? SCHEMA[ui.to].name : "")}</div>
+      <div class="mb-2 flex items-center gap-2 text-app-2xs text-muted"><span class="w-16 shrink-0">Max hops</span><div class="flex items-center gap-0.5"><button type="button" class="size-5.5 cursor-pointer rounded-md border border-hairline text-muted">−</button><span class="w-6 text-center font-mono text-app-xs text-ink">3</span><button type="button" class="size-5.5 cursor-pointer rounded-md border border-hairline text-muted">+</button></div><span class="grow"></span><label id="use-implied" class="flex cursor-pointer items-center gap-1.5"><input type="checkbox" class="koda-check" tabindex="-1" ${ui.implied ? "checked" : ""}>use implied</label></div>
+      <div class="mb-2 flex items-center gap-2 text-app-2xs text-muted"><span class="w-16 shrink-0">Ignore</span><span class="min-w-0 grow rounded-md border border-hairline bg-canvas px-2 py-1 font-mono text-app-2xs text-ink">created_by, updated_by</span></div>
+      <p class="my-1.5 text-app-2xs text-dim">${hint}</p>
+      ${rows.map((hops, index) => {
+        const on = ui.path && index === 0;
+        return `<div data-path="${index}" class="${on ? "mb-1.5 overflow-hidden rounded-lg border border-accent-cyan/55" : "mb-1.5 overflow-hidden rounded-lg border border-hairline-soft"}"><button type="button" class="flex w-full cursor-pointer flex-wrap items-center gap-1.5 px-2 py-1.5 text-left font-mono text-app-2xs text-muted transition hover:bg-subtle"><span class="text-dim">${hops.length} hops</span><span class="text-ink">webhook_deliveries</span>${hops.map(([column, table]) => `<span class="flex items-center gap-1.5"><span class="text-dim">─${column}→</span><span class="text-ink">${table}</span></span>`).join("")}${index === 1 ? '<span class="rounded bg-subtle px-1 text-app-3xs text-accent-amber-bright">implied</span>' : ""}</button>${on ? `<pre class="m-0 border-t border-hairline-soft bg-canvas px-2.5 py-2 font-mono text-app-2xs whitespace-pre-wrap text-accent-cyan-bright">${SQL.join("\n")}</pre><div class="flex justify-end bg-canvas px-2 py-1.5"><button type="button" class="${BTN_ON}">Copy SQL</button></div>` : ""}</div>`;
+      }).join("")}
+    </div></div>`;
+}
+const LINK_CLASS = "cursor-pointer font-mono text-accent-cyan-bright underline decoration-accent-cyan/40 underline-offset-2 transition hover:text-ink";
+function tablePanel() {
+  const box = $("table-panel");
+  if (ui.table == null) {
+    box.innerHTML = `<p class="px-6 py-10 text-center text-app-2xs text-dim">Pick a table on the map or in the list. Then use <b>Path to…</b> to see how it joins to another table.</p>`;
+    return;
+  }
+  const t = SCHEMA[ui.table];
+  const section = (title, count, body, open = true) => `<div class="mt-4"><button type="button" aria-expanded="${open}" class="flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left text-app-2xs font-semibold text-muted">${icon(open ? "size-3 shrink-0 rotate-90 text-dim transition" : "size-3 shrink-0 text-dim transition", GLYPH.chevronRight)}${title}${count != null ? `<span class="font-normal text-dim">${count}</span>` : ""}</button>${open ? `<div class="mt-1.5">${body}</div>` : ""}</div>`;
+  const group = (label) => `<div class="pt-1.5 pb-0.5 text-app-2xs text-dim">${label}</div>`;
+  const line = (inner) => `<div class="flex flex-wrap items-baseline gap-1.5 py-0.5 font-mono text-muted">${inner}</div>`;
+  const uses = [["src/db/webhooks.rs:14", "find_webhook", "url, secret, active"], ["src/http/router.rs:31", "register_webhook", "account_id, url, secret"], ["src/webhooks/deliver.rs:58", "send_webhook", "active"]];
+  box.innerHTML = `<div class="min-h-0 grow overflow-y-auto px-4.5 py-4 text-app-2xs"><div class="flex items-start gap-2"><span class="mt-1.5 size-2 shrink-0 rounded-full ${DOTS[t.set]}"></span><div class="min-w-0 grow"><div class="font-mono text-app-sm font-bold break-all text-ink">${t.name}</div><div class="mt-0.5 text-app-2xs break-all text-dim">table · ${SETS[t.set][0]}</div></div></div>
+    <div class="mt-2.5 flex flex-wrap gap-1.5"><button type="button" class="${BTN}">↝ Path to…</button><button type="button" class="${BTN}">View as Mermaid</button></div>
+    ${section("Columns", t.cols.length, `<table class="w-full font-mono text-app-2xs"><tbody>${t.cols.map(([c, k, tag]) => `<tr class="align-top hover:bg-subtle"><td class="py-1 pr-2 text-ink">${c}${tag === "PK" ? '<span class="ml-1 rounded-sm border border-accent-amber/30 px-1 text-app-3xs text-accent-amber-bright">PK</span>' : tag === "FK" ? '<span class="ml-1 rounded-sm border border-accent-cyan/28 px-1 text-app-3xs text-accent-cyan-bright">FK</span>' : ""}</td><td class="py-1 pr-2 text-muted">${k.replace("?", "")}</td><td class="py-1 text-dim">${k.endsWith("?") ? "null" : "not null"}</td></tr>`).join("")}</tbody></table>`)}
+    ${section("Relations", 3, `${group("Foreign keys")}${line(`account_id → <button type="button" class="${LINK_CLASS}">accounts</button><span class="text-dim">N : 1</span>`)}${group("Seen in code · $lookup")}${line(`<span class="text-dim">from</span> <button type="button" class="${LINK_CLASS}">audit_log</button><span class="text-dim">webhook_id</span>`)}${group("Referenced by")}${line(`<button type="button" class="${LINK_CLASS}">webhook_deliveries</button><span class="text-dim">webhook_id</span>`)}`)}
+    ${section("Indexes", 1, line("webhooks_account_id_idx (account_id)"))}
+    ${section("Defined", null, line(`<button type="button" class="${LINK_CLASS}">src/schema.rs:21</button><span>model webhooks → table </span><b class="text-ink">webhooks</b>`))}
+    ${section("Used in code", uses.length, uses.map(([where, fn, cols]) => line(`<button type="button" class="${LINK_CLASS}">${where}</button><button type="button" data-caller="${fn}" title="Show its call graph" class="cursor-pointer text-ink transition hover:text-accent-indigo-bright">${fn}</button><span class="text-dim">${cols}</span>`)).join(""))}
+  </div>`;
+}
+function keys() {
+  if (ui.view !== "Schema" || ui.look !== "Map") { $("keys").innerHTML = ""; return; }
+  const folders = `<div class="absolute bottom-10 left-3 z-10 flex max-w-64 flex-col gap-0.5 rounded-lg border border-hairline bg-elevated p-2 font-mono text-app-2xs elevated-shadow"><span class="px-1 pb-1 text-app-3xs tracking-wider text-dim uppercase">Schemas · click to hide</span>${SETS.map(([folder], set) => `<button type="button" aria-pressed="true" class="flex w-full cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-left text-muted transition hover:bg-hover hover:text-ink"><span class="size-2 shrink-0 rounded-full ${DOTS[set]}"></span><span class="min-w-0 grow truncate">${folder}</span><span class="shrink-0 text-dim tabular-nums">${SCHEMA.filter((t) => t.set === set).length}</span></button>`).join("")}</div>`;
+  const edges = `<div class="pointer-events-none absolute top-3 left-3 z-10 flex flex-wrap items-center gap-3 rounded-lg border border-hairline-soft bg-panel/90 px-2.5 py-1 font-mono text-app-3xs text-muted">${KEY_ROWS.map(([kind, label]) => `<span data-key="${kind}" class="flex items-center gap-1.5 rounded px-1 ${ui.kind === kind ? "bg-hover text-ink" : ""}"><svg class="h-2.5 w-8" viewBox="0 0 34 10"><path class="${EDGE_CLASS[kind]}" style="opacity: 1" d="M2 5 H32"/></svg>${label}</span>`).join("")}</div>`;
+  $("keys").innerHTML = folders + edges;
+}
+
+const EXPORT_TABLES = [at("webhook_deliveries"), at("webhooks"), at("accounts")];
+function exportText(look) {
+  const tables = EXPORT_TABLES.map((i) => SCHEMA[i]);
+  const kind = (k) => k.replace("?", "");
+  if (look === "Mermaid") {
+    return ["erDiagram", ...tables.flatMap((t) => [`  "${t.name}" {`, ...t.cols.map(([c, k, tag]) => `    ${kind(k)} ${c}${tag ? ` ${tag}` : ""}`), "  }"]), '  "webhooks" ||--o{ "webhook_deliveries" : webhook_id', '  "accounts" ||--o{ "webhooks" : account_id'];
+  }
+  if (look === "DBML") {
+    return [...tables.flatMap((t) => [`Table ${t.name} {`, ...t.cols.map(([c, k, tag]) => `  ${c} ${kind(k)}${tag === "PK" ? " [pk]" : k.endsWith("?") ? "" : " [not null]"}`), "}", ""]), "Ref: webhook_deliveries.webhook_id > webhooks.id", "Ref: webhooks.account_id > accounts.id"];
+  }
+  return ["digraph schema {", '  node [shape=record fontname="Helvetica"];', ...tables.map((t) => `  "${t.name}" [label="{${t.name}|${t.cols.map(([c, k], p) => `<p${p}> ${c} ${kind(k)}`).join("|")}}"];`), '  "webhook_deliveries":p1 -> "webhooks":p0 [arrowhead=teetee arrowtail=crowodot dir=both];', '  "webhooks":p1 -> "accounts":p0 [arrowhead=teetee arrowtail=crowodot dir=both];', "}"];
+}
+function colour(look, line) {
+  const kw = { Mermaid: ["erDiagram"], DBML: ["Table", "Ref:", "indexes"], Graphviz: ["digraph", "node"] }[look];
+  const [body, comment] = look === "DBML" && line.includes("//") ? [line.slice(0, line.indexOf("//")), line.slice(line.indexOf("//"))] : [line, ""];
+  const pieces = body.split(/("[^"]*"|\[[^\]]*\]| )/).filter((p) => p !== "");
+  return pieces.map((p) => {
+    const cls = p.startsWith('"') ? "koda-str" : p.startsWith("[") || (look === "Mermaid" && /^(PK|FK|UK)$/.test(p)) || (look === "Graphviz" && /^(arrow|dir=|style=|shape=)/.test(p)) ? "koda-key" : kw.includes(p) ? "koda-kw" : (look === "DBML" && [">", "<", "-", "<>"].includes(p)) || (look === "Graphviz" && p === "->") || (look === "Mermaid" && (p.includes("--") || p.includes(".."))) ? "koda-op" : "";
+    return cls ? `<span class="${cls}">${esc(p)}</span>` : esc(p);
+  }).join("") + (comment ? `<span class="koda-cm">${esc(comment)}</span>` : "");
+}
+function preview() {
+  const boxes = EXPORT_TABLES.map((i, n) => {
+    const t = SCHEMA[i], h = HEAD + t.cols.length * ROW_H + 8, x = 520 - n * 260;
+    return `<g transform="translate(${x}, 20)"><rect class="koda-schema-box" width="${BOX_W}" height="${h}" rx="9"/><path class="koda-schema-head" d="M 0 9 a 9 9 0 0 1 9 -9 h ${BOX_W - 18} a 9 9 0 0 1 9 9 v ${HEAD - 9} h ${-BOX_W} z"/><text x="12" y="18" font-size="11.5" font-weight="700" class="fill-ink">${t.name}</text>${t.cols.map(([c, k], r) => `<text x="12" y="${HEAD + r * ROW_H + 13}" font-size="10.5" class="fill-ink">${c}</text><text x="${BOX_W - 8}" y="${HEAD + r * ROW_H + 13}" text-anchor="end" font-size="9.5" class="fill-dim">${k.replace("?", "")}</text>`).join("")}</g>`;
+  }).join("");
+  return `<svg viewBox="0 0 750 180" class="mx-auto block w-full max-w-[640px] font-mono"><path class="koda-schema-edge" style="opacity: 1" d="M520,${20 + HEAD + ROW_H + 9} C480,${20 + HEAD + ROW_H + 9} 510,${20 + HEAD / 2} 470,${20 + HEAD / 2}"/><path class="koda-schema-edge" style="opacity: 1" d="M260,${20 + HEAD + ROW_H + 9} C220,${20 + HEAD + ROW_H + 9} 250,${20 + HEAD / 2} 210,${20 + HEAD / 2}"/>${boxes}</svg>`;
+}
+function textView() {
+  if (ui.view !== "Schema" || ui.look === "Map") { $("text-view").innerHTML = ""; return; }
+  const lines = exportText(ui.look);
+  const renderer = { Mermaid: "mermaid-rs-renderer", DBML: "Koda's map renderer", Graphviz: "layout-rs · rough preview: no ports, no crow's feet" }[ui.look];
+  $("text-view").innerHTML = `<div class="absolute inset-0 z-10 flex bg-canvas"><div class="koda-schema-source w-2/5 min-w-75 max-w-140 shrink-0 overflow-auto border-r border-hairline-soft bg-panel"><pre class="m-0 py-3.5 font-mono text-app-2xs leading-relaxed">${lines.map((l, n) => `<span class="flex pr-3 whitespace-pre"><span class="inline-block w-10 shrink-0 pr-3 text-right text-dim opacity-60 select-none">${n + 1}</span>${colour(ui.look, l)}</span>`).join("")}</pre></div>
+    <div class="relative flex min-w-0 grow flex-col"><div class="min-h-0 grow overflow-auto px-7 pt-7 pb-12"><div class="koda-schema-preview">${preview()}</div></div><div class="pointer-events-none absolute right-3.5 bottom-2.5 text-right text-app-2xs text-dim">3 tables · 2 relations · ${renderer}</div></div></div>`;
+}
+function layout() {
+  const schema = ui.view === "Schema";
+  $("table-list").style.display = schema ? "" : "none";
+  $("toolbar").style.display = schema ? "" : "none";
+  $("table-panel").style.display = schema && ui.look === "Map" ? "" : "none";
+  header(); keys(); textView();
+  if (schema) { tableList(); toolbar(); tablePanel(); }
+  $("hud").innerHTML = ui.view === "Map" ? `<div class="absolute top-3 left-3 z-10 flex max-w-[26rem] flex-col gap-2 rounded-xl border border-hairline bg-panel/80 px-3.5 py-3 backdrop-blur-md elevated-shadow"><span class="text-app-sm font-semibold text-ink">How the project fits together</span><span class="max-w-96 text-app-2xs leading-relaxed text-dim">5 folders, 14 files and 120 symbols. Each box is a folder, layered so everything depends on what sits below it. Click a box to light up its links and list its files.</span></div>` : "";
+}
+function keycap(key, label) {
+  $("keycap").innerHTML = key ? `<div class="keycap enter"><kbd>${key}</kbd><span>${label}</span></div>` : "";
+}
+async function press(key, label, id) {
+  keycap(key, label);
+  await sleep(900); alive(id);
+}
+const SESSION = "Add a delivery report per account";
+const prompt = (text, typing) => { $("dock-slot").innerHTML = dock({ text, caret: typing, title: ui.sent ? QUESTION : SESSION }); };
+function feed(html) {
+  $("log").insertAdjacentHTML("beforeend", html);
+  $("scroll").scrollTop = $("scroll").scrollHeight;
+}
+
+const q = (sel) => document.querySelector(sel);
+const boxAt = (i) => q(`#nodes [data-table="${i}"] .koda-schema-box`);
+const QUESTION = "Which tables link a webhook delivery back to its account? I need the SQL for the delivery report.";
+const TOOL_OUT = ["1 join paths from webhook_deliveries to accounts, shortest first:", "", "2 hops:", ...SQL];
+const SQL_FENCE = `<pre class="overflow-x-auto whitespace-pre rounded border border-hairline bg-canvas p-3 font-mono text-code leading-relaxed"><span class="text-accent-purple-bright">SELECT</span> * <span class="text-accent-purple-bright">FROM</span> webhook_deliveries\n<span class="text-accent-purple-bright">JOIN</span> webhooks <span class="text-accent-purple-bright">ON</span> webhooks.id = webhook_deliveries.webhook_id\n<span class="text-accent-purple-bright">JOIN</span> accounts <span class="text-accent-purple-bright">ON</span> accounts.id = webhooks.account_id;</pre>`;
+
+async function play(id) {
+  chapter("Open the code graph");
+  Object.assign(ui, { view: "Map", look: "Map", scope: "Current path", hover: null, table: null, kind: null, pop: false, from: null, to: null, implied: false, path: false });
+  ui.sent = false;
+  mountShell(sessionColumn(sessionStrip({ title: SESSION, turn: 18400, session: 18400, hit: "64.0%" })), {
+    phase: "Finished", toolCalls: 4, doing: SESSION,
+    sessions: [{ title: SESSION, ago: "5m ago", turns: 1, phase: "Finished", selected: true }, { title: "Deliveries to a slow endpoint fail again.", ago: "1d ago", turns: 1 }, { title: "Webhooks time out in staging. Find out why and fix it.", ago: "19d ago", turns: 1 }],
+    context: { used: 18400 },
+  });
+  $("log").innerHTML = said(SESSION) + calls([
+    call({ kind: "graph", detail: "deliveries, report, account", took: "0.3s" }),
+    call({ kind: "read", detail: "src/db/deliveries.rs", took: "0.1s" }),
+    call({ kind: "read", detail: "migrations/0007_webhook_deliveries.sql", took: "0.1s" }),
+  ]) + answer("The report needs each delivery's account. I will find how `webhook_deliveries` joins to `accounts` before I write the query.") + footer("21s", { calls: 3, read: 2 });
+  prompt("");
+  $("pointer").style.left = "1180px"; $("pointer").style.top = "720px";
+  $("graph-screen").style.display = "none";
+  $("nodes").innerHTML = ""; $("edges").innerHTML = ""; $("particles").innerHTML = "";
+  keycap(null);
+  await sleep(900); alive(id);
+  await press("⇧⌘G", "Code graph", id);
+  $("graph-screen").style.display = "";
+  layout();
+  mapScene();
+  await sleep(1600); alive(id);
+
+  chapter("Press d for the schema");
+  await press("d", "Schema", id);
+  keycap(null);
+  ui.view = "Schema";
+  layout();
+  $("nodes").innerHTML = ""; $("captions").innerHTML = "";
+  schemaScene({ arriving: true, waiting: true });
+  await sleep(40); alive(id);
+  schemaScene({ waiting: true });
+  await sleep(700); alive(id);
+  schemaScene();
+  await sleep(2200); alive(id);
+
+  chapter("A table, its keys and the code that uses it");
+  const webhooks = at("webhooks");
+  await pointTo(boxAt(webhooks), id, 0.5, 0.2);
+  ui.hover = webhooks; schemaScene();
+  await sleep(1400); alive(id);
+  await click(boxAt(webhooks), id);
+  ui.hover = null; ui.table = webhooks;
+  schemaScene(); tableList(); tablePanel();
+  await sleep(1600); alive(id);
+  await pointTo(q('[data-caller="register_webhook"]'), id);
+  await sleep(1600); alive(id);
+
+  chapter("Every kind of link");
+  ui.table = null; schemaScene(); tableList(); tablePanel();
+  for (const [kind] of KEY_ROWS) {
+    ui.kind = kind; keys(); schemaScene();
+    await pointTo(q(`[data-key="${kind}"]`), id);
+    await sleep(700); alive(id);
+  }
+  ui.kind = null; keys(); schemaScene();
+  await sleep(500); alive(id);
+
+  chapter("Find a join path");
+  await press("p", "Path to…", id);
+  keycap(null);
+  ui.pop = true; toolbar();
+  await sleep(700); alive(id);
+  ui.from = at("webhook_deliveries"); toolbar();
+  await sleep(600); alive(id);
+  ui.to = at("accounts"); toolbar();
+  await sleep(1300); alive(id);
+  await click(q("#use-implied"), id);
+  ui.implied = true; toolbar();
+  await sleep(1300); alive(id);
+  await click(q('[data-path="0"] button'), id);
+  ui.path = true; toolbar(); schemaScene();
+  await sleep(3200); alive(id);
+
+  chapter("Mermaid, DBML and Graphviz");
+  ui.pop = false;
+  for (const [key, look] of [["2", "Mermaid"], ["3", "DBML"], ["4", "Graphviz"]]) {
+    await press(key, look, id);
+    ui.look = look;
+    layout();
+    await sleep(1900); alive(id);
+  }
+  keycap(null);
+  await press("1", "Map", id);
+  keycap(null);
+  ui.look = "Map";
+  layout(); schemaScene();
+  await sleep(1200); alive(id);
+
+  chapter("The agent asks the same graph");
+  await click($("close"), id);
+  $("graph-screen").style.display = "none";
+  let typed = "";
+  for (const ch of QUESTION) { typed += ch; prompt(typed, true); await sleep(18 + Math.random() * 18); alive(id); }
+  await sleep(300); alive(id);
+  await click($("send"), id);
+  ui.sent = true;
+  $("strip-slot").innerHTML = sessionStrip({ title: SESSION, turn: 0, session: 18400 });
+  shell({ phase: "Working", doing: SESSION, sessions: [{ title: SESSION, ago: "just now", turns: 2, phase: "Working", selected: true }, { title: "Deliveries to a slow endpoint fail again.", ago: "1d ago", turns: 1 }, { title: "Webhooks time out in staging. Find out why and fix it.", ago: "19d ago", turns: 1 }] });
+  $("dock-slot").innerHTML = dock({ title: SESSION, working: true, activity: "Thinking", elapsed: "1s" });
+  feed(said(QUESTION));
+  await sleep(800); alive(id);
+  feed(`<div id="join-row">${call({ kind: "graph", detail: "join, webhook_deliveries, accounts", status: "running" })}</div>`);
+  await sleep(900); alive(id);
+  $("join-row").innerHTML = call({ kind: "graph", detail: "join, webhook_deliveries, accounts", took: "0.1s", body: output(TOOL_OUT), open: true });
+  $("join-row").querySelector(".enter")?.classList.remove("enter");
+  await sleep(1200); alive(id);
+  feed(answer("Two hops, both on foreign keys: `webhook_deliveries.webhook_id` → `webhooks.id`, then `webhooks.account_id` → `accounts.id`.\n\nUse it as the base of the delivery report and filter on `accounts.id`.").replace("</p></div>", `</p>${SQL_FENCE}</div>`));
+  feed(footer("6s", { calls: 1 }));
+  $("strip-slot").innerHTML = sessionStrip({ title: SESSION, turn: 3900, session: 22300, hit: "66.1%" });
+  $("dock-slot").innerHTML = dock({ title: SESSION });
+  shell({ phase: "Finished", toolCalls: 5, context: { used: 22300 }, sessions: [{ title: SESSION, ago: "just now", turns: 2, phase: "Finished", selected: true }, { title: "Deliveries to a slow endpoint fail again.", ago: "1d ago", turns: 1 }, { title: "Webhooks time out in staging. Find out why and fix it.", ago: "19d ago", turns: 1 }] });
+  await sleep(5200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+$("h-glyph").outerHTML = icon("size-4 shrink-0 text-accent-indigo-bright", GLYPH.hub);
+$("search-glyph").outerHTML = icon("size-3.5", GLYPH.search);
+$("close-glyph").outerHTML = icon("size-3.5 shrink-0", GLYPH.close);
+$("restore-glyph").outerHTML = icon("size-3.5", GLYPH.restore);
+$("code-toggle").innerHTML = icon("size-3.5", GLYPH.code);
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

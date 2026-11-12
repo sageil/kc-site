@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Crew Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+<script src="prefs-ui.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const TASK = "Retry outgoing webhooks on 5xx and timeouts with backoff, and stop at once on 410";
+const ASKED = `/crew-supervised ${TASK}`;
+const TITLE = "Retry outgoing webhooks on 5xx and timeouts";
+const CHECK = "cargo test --test webhooks_retry";
+const COMMANDS = [["/crew-supervised", "A frontier model plans each task, gives it to a cheaper model and checks the result"], ["/crew-self-managed", "A cheaper model plans the task, does it and checks it, with no frontier model"]];
+const BLOCK = `OK 7f3a2c step=1 files=2 +38/-4 tests=pass calls=23 cost=$0.041 repro=fail→pass test=tests/webhooks_retry.rs
+summary: Retries 5xx and timeouts up to 3 times after 0.5s, 1s and 2s. A 410 stops at once.
+changed:
+  M src/webhooks/retry.rs +31 -4
+  A tests/webhooks_retry.rs +7`;
+const q = (s) => document.querySelector(s);
+
+// dock.rs command_list: the chips over the prompt box while a command is typed.
+function commandChips(typed) {
+  const shown = COMMANDS.filter(([name]) => name.startsWith(typed));
+  if (!shown.length) return "";
+  const chip = "shrink-0 cursor-pointer rounded-full border px-2.5 py-1 font-mono text-app-xs transition";
+  return `<div class="absolute right-0 bottom-full left-0 z-40 mb-2 flex flex-col gap-2 rounded-lg border border-hairline bg-elevated p-2 elevated-shadow"><div class="koda-no-scrollbar flex gap-1.5 overflow-x-auto" role="listbox" aria-label="Commands" aria-orientation="horizontal">${shown.map(([n], i) => `<button type="button" role="option" aria-selected="${i === 0}" class="${chip} ${i === 0 ? "border-command bg-command text-canvas" : "border-hairline text-muted hover:text-ink"}">${n}</button>`).join("")}</div><div class="flex min-w-0 items-center gap-2.5 px-1"><span class="shrink-0 font-mono text-app-xs text-ink">${shown[0][0]}</span><span class="min-w-0 grow truncate text-app-2xs text-muted">${shown[0][1]}</span></div></div>`;
+}
+
+// stream/crew.rs CrewCardView, drawn above the transcript as centre.rs places CrewCards.
+function card({ status, calls: n, cost, verdict = null, open = false, block = "" }) {
+  const running = !verdict;
+  const tone = !verdict || verdict === "OK" ? "text-accent-cyan-bright" : "text-accent-rose";
+  return `<div class="mx-4 my-1 rounded border border-hairline bg-surface px-3 py-2"><div class="flex items-center gap-2"><span class="font-mono text-app-2xs uppercase text-dim">Crew</span><span class="min-w-0 grow truncate text-app-xs text-ink">${esc(TITLE)}</span><span class="font-mono text-app-2xs ${tone}">${esc(verdict || status)}</span><span class="font-mono text-app-2xs text-dim">${n} calls</span><span class="font-mono text-app-2xs text-dim">$${cost.toFixed(3)}</span><button type="button" id="details" class="font-mono text-app-2xs text-dim hover:text-ink">${open ? "Hide" : "Details"}</button>${running ? actionButton("Stop") : ""}</div>${open ? `<div class="mt-2 flex max-h-72 flex-col gap-2 overflow-y-auto text-app-xs"><div class="font-mono text-app-2xs text-dim">Checks: ${esc(CHECK)}</div>${block ? `<pre class="whitespace-pre-wrap font-mono text-app-2xs text-ink">${esc(block)}</pre>` : ""}</div>` : ""}</div>`;
+}
+const setCard = (o) => { $("crew-slot").innerHTML = o ? card(o) : ""; };
+const RESEARCH = { kind: "research", verb: "Research", detail: "Where are outgoing webhooks sent and retried, and which test covers them?" };
+
+async function play(id) {
+  const p = $("pointer"); p.style.left = "640px"; p.style.top = "820px";
+  mountShell(sessionColumn(), { sessions: [{ title: "Webhooks time out in staging. Find out why and fix it.", ago: "3d ago", turns: 1 }, { title: "Rotate the webhook secret", ago: "7d ago", turns: 3 }] });
+  $("strip-slot").insertAdjacentHTML("afterend", '<div id="crew-slot"></div>');
+  chapter("Type /crew-supervised");
+  await sleep(700); alive(id);
+  await click($("prompt"), id);
+  let typed = "";
+  for (const ch of "/cr") { typed += ch; $("dock-slot").innerHTML = dock({ text: typed, caret: true, popover: commandChips(typed) }); await sleep(110); alive(id); }
+  await sleep(1100); alive(id);
+  typed = "/crew-supervised ";
+  for (let i = 0; i < TASK.length; i += 2) { $("dock-slot").innerHTML = dock({ text: typed + TASK.slice(0, i + 2), caret: true }); await sleep(30); alive(id); }
+  await sleep(500); alive(id);
+  await click($("send"), id);
+
+  chapter("The leader writes a checked task");
+  const me = { title: ASKED, ago: "just now", turns: 1, phase: "Working", selected: true };
+  $("strip-slot").innerHTML = sessionStrip({ title: ASKED, turn: 0, session: 0 });
+  $("dock-slot").innerHTML = dock({ title: ASKED, working: true, activity: `Research ${RESEARCH.detail}`, elapsed: "2s" });
+  pfAdd(said(ASKED));
+  pfAdd(calls([call({ ...RESEARCH, status: "running" })]));
+  shell({ phase: "Working", doing: ASKED, toolCalls: 1, sessions: [me, ...SH.sessions], context: { used: 7400 } });
+  await sleep(1600); alive(id);
+  $("log").lastElementChild.lastElementChild.outerHTML = call({ ...RESEARCH, took: "6.2s" });
+  pfAdd(calls([call({ kind: "delegate", verb: "Delegate", status: "running" })]));
+  shell({ toolCalls: 2, context: { used: 10900 } });
+  $("dock-slot").innerHTML = dock({ title: ASKED, working: true, activity: "Delegate", elapsed: "9s" });
+  setCard({ status: "Checking", calls: 0, cost: 0.002 });
+  await sleep(1300); alive(id);
+
+  chapter("A private copy: the worker reproduces the bug");
+  await click($("details"), id);
+  setCard({ status: "worker", calls: 2, cost: 0.004, open: true });
+  await sleep(2400); alive(id);
+
+  chapter("The worker fixes the copy");
+  for (const [i, n] of [3, 7, 11, 15, 19].entries()) {
+    setCard({ status: "worker", calls: n, cost: 0.006 + i * 0.006, open: true });
+    await sleep(650); alive(id);
+  }
+  await sleep(500); alive(id);
+
+  chapter("Koda runs the check itself");
+  setCard({ status: "Checking", calls: 22, cost: 0.039, open: true });
+  await sleep(2200); alive(id);
+
+  chapter("OK: applied, uncommitted");
+  setCard({ verdict: "OK", calls: 23, cost: 0.041, open: true, block: BLOCK });
+  $("log").lastElementChild.lastElementChild.outerHTML = call({ kind: "delegate", verb: "Delegate", took: "1m 48s" });
+  const changes = [{ path: "src/webhooks/retry.rs", state: "M", added: 31, removed: 4 }, { path: "tests/webhooks_retry.rs", state: "U", added: 7, removed: 0 }];
+  shell({ changes, graph: [{ path: "src/webhooks/retry.rs", state: "M", definitions: 5, uses: 3, usedBy: 2 }], context: { used: 13600 } });
+  await sleep(900); alive(id);
+  pfAdd(answer("**OK.** The check passes. The reproduction test failed before the fix and passes after it.\n\nThe retries are in `src/webhooks/retry.rs` and the test is in `tests/webhooks_retry.rs`. Both are in your working tree, uncommitted. The crew spent $0.041 on `deepseek/deepseek-v3.2`."));
+  pfAdd(footer("1m 57s", { calls: 2 }));
+  me.phase = "Finished";
+  $("dock-slot").innerHTML = dock({ title: ASKED });
+  $("strip-slot").innerHTML = sessionStrip({ title: ASKED, turn: 15800, session: 15800, hit: "61.3%" });
+  shell({ phase: "Finished", sessions: SH.sessions });
+  await sleep(5200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

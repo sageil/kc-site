@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Crew Settings Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+<script src="prefs-ui.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const q = (s) => document.querySelector(s);
+const FIELD = "rounded border border-hairline bg-canvas px-2 py-1 font-mono text-app-xs text-ink outline-none focus:border-accent-cyan/50";
+const CONFIGURED = [["anthropic", "Anthropic"], ["chatgpt", "ChatGPT"], ["openrouter", "OpenRouter"], ["ollama", "Ollama Local"]];
+const LISTED = {
+  anthropic: [["claude-opus-5-5", "claude-opus-5-5"], ["claude-sonnet-5-5", "claude-sonnet-5-5"], ["claude-fable-5-1", "claude-fable-5-1"]],
+  openrouter: [["deepseek/deepseek-v3.2", "deepseek/deepseek-v3.2"], ["qwen/qwen3-coder", "qwen/qwen3-coder"], ["z-ai/glm-4.6", "z-ai/glm-4.6"], ["moonshotai/kimi-k2", "moonshotai/kimi-k2"]],
+};
+let c;
+const blank = () => ({ leader: null, worker: null, open: null, active: null });
+
+// agents/screen.rs ModelChoice as crew_fields.rs ModelPick uses it.
+function modelPick(id, held, none) {
+  const provider = pfDrop(`${id}-provider`, held ? held[0] : "", [["", none], ...CONFIGURED], { cls: "w-52", open: c.open === `${id}-provider`, active: c.active });
+  const model = held ? pfDrop(`${id}-model`, held[1], LISTED[held[0]], { cls: "w-72", open: c.open === `${id}-model`, active: c.active, placeholder: "Choose a model" }) : "";
+  return `<div class="flex flex-wrap items-center gap-2">${provider}${model}</div>`;
+}
+const toggle = (label, on) => `<button type="button" role="switch" aria-label="${label}" aria-checked="${on}" class="${on ? "flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-accent-cyan/35 bg-accent-cyan/12 px-0.5" : "flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-hairline bg-subtle px-0.5"}"><div class="${on ? "ml-auto size-3.5 rounded-full bg-accent-cyan-bright" : "size-3.5 rounded-full bg-dim"}"></div></button>`;
+const number = (v) => `<span class="${FIELD} block w-16 text-right">${v}</span>`;
+const text = (v, placeholder, cls = "w-64") => `<span class="${FIELD} block ${cls} ${v ? "" : "text-dim"}">${v || placeholder}</span>`;
+function row(title, caption, control, changed) {
+  const reset = changed ? `<span class="font-mono text-app-2xs text-accent-cyan-bright">changed</span><button type="button" class="cursor-pointer font-mono text-app-2xs text-dim underline hover:text-ink" aria-label="Reset ${title} to its default">reset</button>` : "";
+  return `<div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-hairline-soft py-3 first:border-t-0"><div class="flex min-w-48 flex-1 flex-col gap-0.5"><span class="flex flex-wrap items-center gap-2 text-app-sm font-medium text-ink">${title}${reset}</span><span class="text-app-2xs text-dim">${caption}</span></div><div class="min-w-0 max-w-full">${control}</div></div>`;
+}
+const section = (title, caption, rows) => `<section class="flex flex-col rounded-lg border border-hairline bg-panel"><div class="flex flex-col gap-0.5 rounded-t-lg border-b border-hairline bg-subtle px-4 py-3"><h2 class="text-app-sm font-semibold text-ink">${title}</h2>${caption ? `<p class="text-app-xs text-muted">${caption}</p>` : ""}</div><div class="flex flex-col px-4">${rows.join("")}</div></section>`;
+
+function page() {
+  const done = c.leader && c.leader[1] ? c.leader : null, worker = c.worker && c.worker[1] ? c.worker : null;
+  const sections = [
+    section("Supervised", "Used by /crew-supervised. Without a leader and a worker model, it opens this page and runs nothing.", [
+      row("Leader model", "Plans each task, reads the verdicts and decides what to do after a failure. Every leader turn runs on it, whatever model the session uses.", modelPick("crew-leader", c.leader, "Choose a model"), !!done),
+      row("Worker model", "The cheap model that reads the project and writes the code.", modelPick("crew-supervised-worker", c.worker, "Choose a model"), !!worker),
+      row("Reasoning", "How hard the worker model thinks. Empty leaves its default.", text("", "model default")),
+      row("Stronger model", "One attempt on this model when the worker's fixes fail.", modelPick("crew-stronger", null, "None")),
+      row("Review model", "Optional. Reviews the task, the test and the diff once the check passes, and can only turn an OK into not verified.", modelPick("crew-review", null, "None")),
+      row("Budget per task", "What one task may spend. A model with no price offers tokens or none.", `<div class="flex items-center gap-2">${pfDrop("crew-budget", "dollars", [["dollars", "Dollars"], ["tokens", "Tokens"], ["none", "None"]], { cls: "w-28" })}<span aria-label="Budget per crew" class="${FIELD} block w-24 text-right">0.50</span></div>`),
+      row("Retries after a failure", "How many narrower retries the leader may send for a task that failed. 0 reports the failure at once.", number(1)),
+      row("Skills", "Lets the worker and research read your skills. The leader never does.", toggle("Skills", true)),
+      row("Memory", "Lets the worker and research use the project's memory: recall past fixes and store new ones. The leader never does.", toggle("Memory", false)),
+    ]),
+    section("Self-managed", "Used by /crew-self-managed. Without a worker model, it opens this page and runs nothing.", [
+      row("Worker model", "The cheap model that plans, manages and writes the code.", modelPick("crew-self-worker", null, "Choose a model")),
+      row("Reasoning", "How hard the worker model thinks. Empty leaves its default.", text("", "model default")),
+      row("Worker rounds", "The most rounds that run before a last worker finalizes the work.", number(10)),
+      row("Open tasks", "The longest task list kept.", number(12)),
+      row("Skills", "Lets the worker and ideation read your skills. The manager never does.", toggle("Skills", true)),
+      row("Memory", "Lets the worker and ideation use the project's memory: recall past fixes and store new ones. The manager never does.", toggle("Memory", false)),
+    ]),
+    section("Project", "How a private copy is made.", [
+      row("Dependency folders", "One per line. Linked into each copy instead of installed. Build output is never linked.", `<span class="${FIELD} block w-64 whitespace-pre">node_modules\n.venv\nvenv\nvendor</span>`),
+    ]),
+    section("While it runs", "", [
+      row("Parallel jobs", "The most crew jobs running at the same time, across all sessions. More wait in a queue and start as others finish.", number(3)),
+      row("Recent crews and spend", "Crew jobs in this project that wait for your decision, and what each model has spent.", '<div class="flex max-w-md flex-col gap-1 font-mono text-app-2xs text-dim"><span>Nothing yet</span></div>'),
+    ]),
+  ].join("");
+  const caption = "Frontier-level coding results from cheap or local models. /crew-supervised and /crew-self-managed hand one task to them in a private copy of the project; Koda runs the checks itself, and work that passes is applied to the working tree uncommitted.";
+  const body = `<div id="crew-page" class="min-h-0 grow overflow-y-auto"><div class="flex w-full flex-col gap-5 px-5 py-5"><div class="flex flex-col gap-1"><h1 class="text-app font-semibold text-ink">Crew Workflow</h1><p class="text-app-sm leading-relaxed text-muted">${caption}</p></div>${sections}</div></div>`;
+  const foot = screenFooter(`<span class="text-accent-emerald-bright">✓</span><span class="shrink-0">Settings saved automatically to</span><span class="truncate text-ink/80">${PF_CONFIG}</span>`, actionButton("Reset to Defaults", "secondary", GLYPH.history) + actionButton("Open config file", "secondary", GLYPH.external) + actionButton("Close", "secondary", GLYPH.close));
+  return pfPrefs("Crew Workflow", body + foot);
+}
+const paint = () => openScreen("settings", page());
+async function pick(id, trigger, key) {
+  await click($(trigger), id);
+  c.open = trigger; c.active = null; paint(); await sleep(700); alive(id);
+  await pointTo(q(`[data-opt="${key}"]`), id);
+  c.active = key; paint(); await sleep(250); alive(id);
+  await click(q(`[data-opt="${key}"]`), id);
+  c.open = null; c.active = null;
+}
+
+async function play(id) {
+  const p = $("pointer"); p.style.left = "640px"; p.style.top = "820px";
+  c = blank();
+  mountShell(sessionColumn(), { sessions: [{ title: "Webhooks time out in staging. Find out why and fix it.", ago: "3d ago", turns: 1 }, { title: "Rotate the webhook secret", ago: "7d ago", turns: 3 }] });
+  chapter("Preferences → Crew Workflow");
+  await sleep(700); alive(id);
+  await click($("prompt"), id);
+  let typed = "";
+  for (const ch of "/crew-supervised") { typed += ch; $("dock-slot").innerHTML = dock({ text: typed, caret: true }); await sleep(70); alive(id); }
+  await sleep(500); alive(id);
+  await click($("send"), id);
+  $("dock-slot").innerHTML = dock();
+  paint(); await sleep(1800); alive(id);
+
+  chapter("Choose a leader model");
+  await pick(id, "crew-leader-provider", "anthropic");
+  c.leader = ["anthropic", ""]; paint(); await sleep(600); alive(id);
+  await pick(id, "crew-leader-model", "claude-opus-5-5");
+  c.leader = ["anthropic", "claude-opus-5-5"]; paint(); await sleep(1600); alive(id);
+
+  chapter("Choose a worker model");
+  await pick(id, "crew-supervised-worker-provider", "openrouter");
+  c.worker = ["openrouter", ""]; paint(); await sleep(600); alive(id);
+  await pick(id, "crew-supervised-worker-model", "deepseek/deepseek-v3.2");
+  c.worker = ["openrouter", "deepseek/deepseek-v3.2"]; paint(); await sleep(1400); alive(id);
+
+  chapter("A stronger model for when fixes fail");
+  await pointTo($("crew-stronger-provider"), id);
+  await sleep(1800); alive(id);
+  chapter("Set the budget per task");
+  await pointTo($("crew-budget"), id);
+  await sleep(2200); alive(id);
+  chapter("Ready: type /crew-supervised or /crew-self-managed");
+  await click(q('[data-act="Close"]'), id);
+  closeScreen();
+  await pointTo($("prompt"), id, 0.2);
+  await sleep(3000); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

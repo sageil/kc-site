@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Terminal Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+<style>
+#koda-terminal-panel .xterm { height: 100%; overflow: hidden; padding: 4px 8px; font: 12px/1.45 var(--font-mono); color: var(--koda-terminal-foreground); background: var(--koda-terminal-background); white-space: pre; }
+.xterm .c { display: inline-block; width: 7px; height: 14px; vertical-align: -2px; background: var(--koda-terminal-foreground); animation: blink 1s steps(1) infinite; }
+.a-g { color: var(--koda-ansi-green); } .a-r { color: var(--koda-ansi-red); } .a-y { color: var(--koda-ansi-yellow); } .a-b { color: var(--koda-ansi-blue); } .a-m { color: var(--koda-ansi-magenta); } .a-c { color: var(--koda-ansi-cyan); } .a-d { color: var(--koda-ansi-bright-black); } .a-bold { font-weight: 700; }
+.keycap { position: absolute; z-index: 66; left: 50%; top: 42%; transform: translateX(-50%); display: flex; gap: 8px; padding: 14px 22px; border-radius: 14px; background: rgb(40 42 54 / .94); border: 1px solid #BD93F9; box-shadow: 0 18px 50px rgb(0 0 0 / .5); font: 600 30px var(--font-mono); color: #F8F8F2; }
+.keycap span { min-width: 44px; padding: 4px 10px; border-radius: 8px; border: 1px solid #6272A4; background: #21222C; text-align: center; }
+#koda-terminal-panel { transition: left .7s cubic-bezier(.3,0,.2,1), top .7s cubic-bezier(.3,0,.2,1); }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const ASKED = "Send Retry-After on limited requests, and test it.";
+const TREE = [
+  { name: "Cargo.toml", path: "Cargo.toml" }, { name: "README.md", path: "README.md" },
+  { name: "deploy", path: "deploy", folder: true, closed: true },
+  { name: "migrations", path: "migrations", folder: true, closed: true },
+  { name: "src", path: "src", folder: true },
+  { name: "http", path: "src/http", folder: true, depth: 1 },
+  { name: "middleware.rs", path: "src/http/middleware.rs", depth: 2 },
+  { name: "limits", path: "src/limits", folder: true, depth: 1 },
+  { name: "window.rs", path: "src/limits/window.rs", depth: 2 },
+  { name: "main.rs", path: "src/main.rs", depth: 1 },
+  { name: "webhooks", path: "src/webhooks", folder: true, depth: 1, closed: true },
+  { name: "tests", path: "tests", folder: true },
+  { name: "rate_limit.rs", path: "tests/rate_limit.rs", depth: 1 }, { name: "webhooks.rs", path: "tests/webhooks.rs", depth: 1 },
+];
+const CHANGES = [{ path: "src/http/middleware.rs", state: "M", added: 4, removed: 2 }, { path: "src/limits/window.rs", state: "M", added: 7, removed: 2 }, { path: "tests/rate_limit.rs", state: "U", added: 41, removed: 0 }];
+const DOCKED = "relative flex shrink-0 flex-col border-t border-hairline bg-well";
+const FLOATING = "absolute z-30 flex flex-col overflow-hidden rounded-lg border border-hairline bg-well elevated-shadow";
+const BTN = "cursor-pointer rounded px-1.5 py-1 text-muted transition hover:bg-hover hover:text-ink";
+
+const sessions = [];
+let active = 0, menu = false, rect = null;
+function tab(t, i) {
+  const on = i === active;
+  return `<button type="button" class="${on ? "group flex cursor-pointer items-center gap-1.5 rounded bg-panel px-2 py-1 text-ink shadow-[inset_0_-2px_0_var(--koda-accent-cyan)]" : "group flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-dim transition hover:bg-hover hover:text-ink"}"><span class="${t.host ? "rounded border border-hairline bg-subtle px-1 text-app-3xs tracking-wider text-muted" : "rounded border border-accent-cyan/45 bg-accent-cyan/12 px-1 text-app-3xs tracking-wider text-accent-cyan-bright"}">${t.host ? "HOST" : "DOCKER"}</span><span class="max-w-40 truncate">${t.label}</span><span role="button" aria-label="Close terminal" class="rounded px-0.5 text-dim opacity-0 transition group-hover:opacity-100 hover:text-ink">×</span></button>`;
+}
+const menuRow = (key, label, description) => `<button type="button" role="option" tabindex="-1" data-pick="${key}" aria-selected="false" class="flex w-full cursor-pointer items-start gap-2 rounded-md px-2.5 py-1.5 text-left"><span class="invisible mt-px w-3.5 shrink-0">${icon("size-3.5", GLYPH.check)}</span><span class="flex min-w-0 grow flex-col gap-0.5"><span class="flex min-w-0 items-center gap-2"><span class="min-w-0 truncate font-mono text-app-xs text-muted">${label}</span></span><span class="line-clamp-1 text-app-2xs text-dim">${description}</span></span></button>`;
+function panel(mode) {
+  const old = $("koda-terminal-panel");
+  const floating = mode === "floating";
+  const style = floating ? (rect ? `left:${rect[0]}px;top:${rect[1]}px;width:560px;height:320px` : "right:24px;bottom:24px;width:560px;height:320px") : "height:min(280px, calc(100% - 120px))";
+  const cls = mode === "hidden" ? `${DOCKED} hidden` : floating ? FLOATING : DOCKED;
+  const pop = menu ? `<div class="absolute z-40 flex max-h-80 flex-col overflow-hidden rounded-lg border border-hairline bg-elevated elevated-shadow left-0 bottom-full mb-1.5 w-72 enter"><div class="flex min-h-0 grow flex-col overflow-y-auto p-1" role="listbox" aria-label="New terminal">${menuRow("container", "Project container", "A shell inside the container this project runs in")}${menuRow("host", "Host shell", "zsh on this machine, in the project folder")}</div></div>` : "";
+  old.outerHTML = `<div id="koda-terminal-panel" data-floating="${floating}" class="${cls}" style="${style}"><div id="koda-terminal-split" class="${floating ? "hidden" : "absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize"}"></div><div id="koda-terminal-bar" class="${floating ? "relative flex shrink-0 cursor-grab items-center gap-0.5 border-b border-hairline px-1.5 py-1 font-mono text-app-2xs select-none" : "relative flex shrink-0 items-center gap-0.5 border-b border-hairline px-1.5 py-1 font-mono text-app-2xs select-none"}">${sessions.map(tab).join("")}<div class="relative min-w-0 "><button id="t-new" type="button" aria-label="New terminal" title="New terminal" aria-haspopup="listbox" aria-expanded="${menu}" class="${BTN}">${icon("size-3", GLYPH.plus)}</button>${pop}</div><span class="grow"></span><button id="t-float" type="button" aria-label="${floating ? "Dock the terminal" : "Float the terminal"}" title="${floating ? "Dock to the bottom" : "Float over Koda"}" class="${floating ? "cursor-pointer rounded px-1.5 py-1 text-accent-cyan-bright transition hover:bg-hover" : BTN}">${icon("size-3", GLYPH.copy)}</button><button id="t-hide" type="button" aria-label="Hide the terminal" title="Hide (⌃\`)" class="${BTN}">${icon("size-3", GLYPH.chevronDown)}</button></div><div class="relative min-h-0 grow"><div class="absolute inset-0 p-1.5"><div id="xterm" data-koda-terminal="true" class="xterm h-full w-full"></div></div></div><div id="koda-terminal-corner" class="${floating ? "absolute right-0 bottom-0 z-10 size-3.5 cursor-nwse-resize" : "hidden"}"></div></div>`;
+  paint();
+}
+function paint() {
+  const t = sessions[active], x = $("xterm");
+  if (!t || !x) return;
+  x.innerHTML = t.lines.join("\n") + `${t.typing ?? ""}<span class="c"></span>`;
+  x.scrollTop = x.scrollHeight;
+}
+const say = (t, ...lines) => { t.lines.push(...lines); paint(); };
+async function typeIn(t, text, id, every = 45) {
+  t.typing = "";
+  for (const ch of text) { t.typing += esc(ch); paint(); await sleep(every); alive(id); }
+  await sleep(250); alive(id);
+  t.lines[t.lines.length - 1] += t.typing;
+  t.typing = "";
+  paint();
+}
+async function keys(id, ...caps) {
+  const k = document.createElement("div");
+  k.className = "keycap enter";
+  k.innerHTML = caps.map((c) => `<span>${c}</span>`).join("");
+  $("stage").append(k);
+  await sleep(1100); alive(id);
+  k.remove();
+}
+const box = `<span class="a-c">/workspace</span> <span class="a-m">$</span> `;
+const mac = `<span class="a-b">~/dev/acme-api</span> <span class="a-g">main</span> <span class="a-m">%</span> `;
+
+async function play(id) {
+  document.querySelectorAll(".keycap").forEach((n) => n.remove());
+  sessions.length = 0; active = 0; menu = false; rect = null;
+  mountShell(`${sessionColumn(sessionStrip({ title: ASKED, turn: 9600, session: 9600, hit: "58.3%" }))}<div id="koda-terminal-panel"></div>`, {
+    runsOn: "docker", phase: "Finished", toolCalls: 3, doing: ASKED, tree: TREE, changes: CHANGES,
+    sessions: [{ title: ASKED, ago: "1m ago", turns: 1, phase: "Finished", selected: true }, { title: "Deliveries to a slow endpoint fail again.", ago: "1d ago", turns: 1 }],
+    graph: [{ path: "src/http/middleware.rs", state: "M", definitions: 5, uses: 2, usedBy: 3 }, { path: "src/limits/window.rs", state: "M", definitions: 3, uses: 1, usedBy: 2 }],
+    context: { used: 9600 },
+  });
+  $("dock-slot").innerHTML = dock({ title: ASKED, runsOn: "docker" });
+  $("log").innerHTML = said(ASKED) + calls([
+    call({ kind: "read", detail: "src/http/middleware.rs", took: "0.1s" }),
+    call({ kind: "edit", verb: "Edit", detail: "src/http/middleware.rs", took: "0.2s" }),
+    call({ kind: "shell", detail: "cargo test rate_limit", took: "6.4s" }),
+  ]) + answer("Limited requests now get `429` with `Retry-After`. The rate limit tests pass.") + footer("24s", { calls: 3, read: 1, edited: 1, added: 4, removed: 2 });
+  document.querySelectorAll(".enter").forEach((el) => el.classList.remove("enter"));
+  panel("hidden");
+  $("pointer").style.left = "640px"; $("pointer").style.top = "820px";
+  await sleep(1400); alive(id);
+
+  chapter("Open it with ⌃`");
+  await keys(id, "⌃", "`");
+  const box1 = { host: false, label: "acme-api", lines: ['<span class="a-d">Starting the project container…</span>'] };
+  sessions.push(box1);
+  panel("docked");
+  shell({ terminal: true });
+  await sleep(1200); alive(id);
+  box1.lines = [box];
+  paint();
+  await sleep(500); alive(id);
+
+  chapter("A shell inside the project's container");
+  await typeIn(box1, "cargo test rate_limit", id);
+  say(box1, '<span class="a-g a-bold">   Compiling</span> acme-api v0.4.0 (/workspace)');
+  await sleep(900); alive(id);
+  say(box1, '<span class="a-g a-bold">    Finished</span> `test` profile in 5.82s', '<span class="a-g a-bold">     Running</span> tests/rate_limit.rs', "", "running 3 tests",
+    'test a_burst_gets_retry_after ... <span class="a-g">ok</span>', 'test counters_on_every_reply ... <span class="a-g">ok</span>', 'test window_resets ... <span class="a-g">ok</span>', "",
+    'test result: <span class="a-g">ok</span>. 3 passed; 0 failed', box);
+  await sleep(1800); alive(id);
+
+  chapter("Your shell keeps its keys");
+  await keys(id, "⌃", "R");
+  box1.lines[box1.lines.length - 1] = "(reverse-i-search)`curl': ";
+  await typeIn(box1, "curl -si localhost:8080/v1/orders", id, 30);
+  await sleep(500); alive(id);
+  box1.lines[box1.lines.length - 1] = box + "curl -si localhost:8080/v1/orders";
+  say(box1, '<span class="a-r">HTTP/1.1 429 Too Many Requests</span>', '<span class="a-c">retry-after</span>: 12', '<span class="a-c">x-ratelimit-limit</span>: 60', '<span class="a-c">x-ratelimit-remaining</span>: 0', box);
+  await sleep(2400); alive(id);
+
+  chapter("Another terminal, on this machine");
+  await click($("t-new"), id);
+  menu = true; panel("docked");
+  await sleep(900); alive(id);
+  await click(document.querySelector('[data-pick="host"]'), id);
+  menu = false;
+  const host = { host: true, label: "zsh", lines: [mac] };
+  sessions.push(host);
+  active = 1;
+  panel("docked");
+  await sleep(500); alive(id);
+  await typeIn(host, "git status -s", id);
+  say(host, ' <span class="a-r">M</span> src/http/middleware.rs', ' <span class="a-r">M</span> src/limits/window.rs', '<span class="a-g">??</span> tests/rate_limit.rs', mac);
+  await sleep(1800); alive(id);
+
+  chapter("Float it over Koda");
+  await click($("t-float"), id);
+  panel("floating");
+  await sleep(1300); alive(id);
+  await pointTo($("koda-terminal-bar"), id, 0.7, 0.5);
+  rect = [80, 60];
+  $("koda-terminal-panel").style.left = "80px"; $("koda-terminal-panel").style.top = "60px";
+  $("koda-terminal-panel").style.right = ""; $("koda-terminal-panel").style.bottom = "";
+  await sleep(1200); alive(id);
+  await typeIn(host, "git diff --stat", id);
+  say(host, " src/http/middleware.rs | 6 ++++--", " src/limits/window.rs   | 9 +++++++--", " tests/rate_limit.rs    | 41 +++++++++++++++++", " 3 files changed, 52 insertions(+), 4 deletions(-)", mac);
+  await sleep(2000); alive(id);
+
+  chapter("Hide it, and it's there when you're back");
+  await keys(id, "⌃", "`");
+  panel("hidden");
+  shell({ terminal: false });
+  await sleep(1500); alive(id);
+  await click($("sh-terminal"), id);
+  panel("floating");
+  shell({ terminal: true });
+  await sleep(3500); alive(id);
+}
+
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

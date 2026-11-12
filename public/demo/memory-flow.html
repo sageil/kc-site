@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Memory Across Sessions Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+<script src="memory-ui.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const FIRST = "Webhooks time out in staging. Find out why and fix it.";
+const SECOND = "Deliveries to a slow endpoint fail again.";
+const SOLUTION = "a81c04de-5b27-4f0e-9c13-6d2e8a41b7f9", PROBLEM = "3f9a2c71-0e4d-4b8a-a6f2-91c5d3e07b28";
+const OLDER = () => MEMORIES().filter((m) => m.id !== SOLUTION && m.id !== PROBLEM);
+const OLDER_SESSIONS = [{ title: "Rotate the webhook secret", ago: "4d ago", turns: 3 }, { title: "Add webhook retries", ago: "6d ago", turns: 8 }];
+const q = (s) => document.querySelector(s);
+const GROUP = '<div class="flex flex-col py-1">';
+function add(html) {
+  const last = $("log").lastElementChild;
+  if (html.startsWith(GROUP) && last?.dataset.calls) last.insertAdjacentHTML("beforeend", html.slice(GROUP.length, -6));
+  else $("log").insertAdjacentHTML("beforeend", html.startsWith(GROUP) ? html.replace(GROUP, '<div data-calls="1" class="flex flex-col py-1">') : html);
+  $("scroll").scrollTop = $("scroll").scrollHeight;
+}
+const setDock = (o) => { $("dock-slot").innerHTML = dock(o); };
+const setStrip = (o) => { $("strip-slot").innerHTML = o ? sessionStrip(o) : ""; };
+const step = async (id, ms, html, patch) => { await sleep(ms * 1.3); alive(id); if (html) add(html); if (patch) shell(patch); };
+
+async function type(id, text, extra = {}) {
+  await click($("prompt"), id);
+  for (let i = 1; i <= text.length; i++) { setDock({ text: text.slice(0, i), caret: true, ...extra }); await sleep(28); alive(id); }
+  await sleep(500); alive(id);
+  await click($("send"), id);
+}
+
+const GET_OUTPUT = output([
+  "**Summary:** WEBHOOK_TIMEOUT=10s, with the staging proxy limit raised to match.",
+  " ",
+  "**Memory: Raise the delivery timeout to 10 s**",
+  "Type: solution",
+  "Created: 2026-10-03T16:53:41.208Z",
+  "Importance: 0.9",
+  "Tags: webhooks, config",
+  " ",
+  "**Content:**",
+  "Deliveries now wait WEBHOOK_TIMEOUT=10s.",
+  "Raised proxy_read_timeout to 12s in deploy/staging/nginx.conf, so the proxy no longer cuts the request at 5 s.",
+  " ",
+  "**Context:**",
+  "  Project: /Users/you/dev/acme-api",
+  `  From session: ${SESSION_FIX}`,
+]);
+
+async function play(id) {
+  const p = $("pointer"); p.style.left = "640px"; p.style.top = "820px";
+  memReset(OLDER(), LINKS().filter(([a]) => a !== SOLUTION));
+  mountShell(sessionColumn(), { sessions: OLDER_SESSIONS, more: 0, memory: { total: 6, session: [], recent: briefsOf(OLDER()) } });
+
+  chapter("Session 1: a fix is asked for");
+  await sleep(900); alive(id);
+  await type(id, FIRST);
+  const S1 = { title: FIRST, ago: "just now", turns: 1, phase: "Working", selected: true };
+  setDock({ title: FIRST, working: true, activity: "Thinking", elapsed: "1s" });
+  setStrip({ title: FIRST, turn: 0, session: 0 });
+  add(said(FIRST));
+  shell({ phase: "Working", doing: FIRST, sessions: [S1, ...OLDER_SESSIONS], context: { used: 9800 } });
+
+  chapter("The agent finds the cause");
+  await step(id, 900, calls([
+    call({ kind: "graph", detail: "webhook, delivery, timeout", took: "0.4s" }),
+  ]), { toolCalls: 1, context: { used: 12400 } });
+  setDock({ title: FIRST, working: true, activity: "Read src/webhooks/deliver.rs", elapsed: "4s" });
+  await step(id, 800, calls([call({ kind: "read", detail: "src/webhooks/deliver.rs", took: "0.1s" })]), { toolCalls: 2, context: { used: 15900 } });
+  await step(id, 800, calls([call({ kind: "read", detail: "deploy/staging/nginx.conf", took: "0.1s" })]), { toolCalls: 3, context: { used: 17300 } });
+  setDock({ title: FIRST, working: true, activity: "$ curl -s -o /dev/null -w '%{http_code} %{time_total}' https://staging.acme-api.test/hooks/slow", elapsed: "9s" });
+  await step(id, 900, calls([call({ kind: "shell", detail: "curl -s -o /dev/null -w '%{http_code} %{time_total}' https://staging.acme-api.test/hooks/slow", took: "5.1s", body: output(["502 5.004"]), open: true })]), { toolCalls: 4, context: { used: 18600 } });
+  await step(id, 1400, answer("The staging proxy cuts each request at 5 s (`proxy_read_timeout 5s`), and `deliver.rs` waits 5 s too. Slow endpoints get a 502. I will raise both."), null);
+  setDock({ title: FIRST, working: true, activity: "Edit src/webhooks/deliver.rs", elapsed: "17s" });
+  await step(id, 1100, calls([call({ kind: "edit", verb: "Edit", detail: "src/webhooks/deliver.rs", took: "0.1s", body: editBody("src/webhooks/deliver.rs", ["@@ -18,7 +18,7 @@", "-const DELIVERY_TIMEOUT: Duration = Duration::from_secs(5);", "+const DELIVERY_TIMEOUT: Duration = Duration::from_secs(10);"]) })]),
+    { toolCalls: 5, context: { used: 21400 }, changes: [{ path: "src/webhooks/deliver.rs", state: "M", added: 1, removed: 1 }], graph: [{ path: "src/webhooks/deliver.rs", state: "M", definitions: 6, uses: 3, usedBy: 2 }] });
+  await step(id, 900, calls([call({ kind: "edit", verb: "Edit", detail: "deploy/staging/nginx.conf", took: "0.1s", body: editBody("deploy/staging/nginx.conf", ["@@ -12,3 +12,3 @@", "-    proxy_read_timeout 5s;", "+    proxy_read_timeout 12s;"]) })]),
+    { toolCalls: 6, context: { used: 23800 }, changes: [{ path: "src/webhooks/deliver.rs", state: "M", added: 1, removed: 1 }, { path: "deploy/staging/nginx.conf", state: "M", added: 1, removed: 1 }] });
+  setDock({ title: FIRST, working: true, activity: "$ cargo test webhooks", elapsed: "26s" });
+  await step(id, 1000, calls([call({ kind: "shell", detail: "cargo test webhooks", took: "8.2s", body: output(["test result: ok. 14 passed; 0 failed"]), open: true })]), { toolCalls: 7, context: { used: 26100 } });
+
+  chapter("The agent decides to remember the fix");
+  setDock({ title: FIRST, working: true, activity: "Remembered “Webhooks time out in staging”", elapsed: "38s" });
+  await step(id, 1300, calls([memoryCall({ command: "store", title: "Webhooks time out in staging", took: "0.1s" })]),
+    { toolCalls: 8, context: { used: 27200 }, memory: { total: 7, session: [{ verb: "Saved", title: "Webhooks time out in staging", kind: "problem" }], recent: briefsOf([...OLDER(), MEMORIES()[1]]) } });
+  memReset(MEMORIES(), LINKS().filter(([a]) => a !== SOLUTION));
+  await step(id, 1000, calls([memoryCall({ command: "store", title: "Raise the delivery timeout to 10 s", took: "0.1s" })]),
+    { toolCalls: 9, context: { used: 28300 }, memory: { total: 8, session: [{ verb: "Saved", title: "Raise the delivery timeout to 10 s", kind: "solution" }, { verb: "Saved", title: "Webhooks time out in staging", kind: "problem" }], recent: briefsOf(MEMORIES()) } });
+  await step(id, 1000, calls([memoryCall({ command: "link", from_id: SOLUTION, relationship: "SOLVES", to_id: PROBLEM, took: "0.1s" })]), { toolCalls: 10, context: { used: 29100 } });
+  memReset();
+  await step(id, 1300, answer("Fixed. The staging proxy and the delivery client both stopped at 5 s.\n\n- `src/webhooks/deliver.rs`: the delivery timeout is now 10 s.\n- `deploy/staging/nginx.conf`: `proxy_read_timeout` is now 12 s.\n\nThe webhook tests pass. I stored the problem and the fix in memory, linked with SOLVES."), null);
+  add(footer("52s", { calls: 10, read: 2, edited: 2, added: 2, removed: 2 }));
+  S1.phase = "Finished";
+  setDock({ title: FIRST });
+  setStrip({ title: FIRST, turn: 31200, session: 31200, hit: "71.4%" });
+  shell({ phase: "Finished", sessions: [S1, ...OLDER_SESSIONS], context: { used: 31200 } });
+  await sleep(2600); alive(id);
+
+  chapter("Session 2, eighteen days later");
+  await click(q("#sh-new"), id);
+  $("log").innerHTML = "";
+  setStrip(null);
+  setDock({});
+  const old = [{ title: FIRST, ago: "18d ago", turns: 1 }, { title: "Rotate the webhook secret", ago: "22d ago", turns: 3 }, { title: "Add webhook retries", ago: "24d ago", turns: 8 }];
+  shell({ phase: null, toolCalls: 0, doing: "No session", sessions: old, changes: [], graph: [], context: { used: null }, memory: { total: 8, session: [], recent: briefsOf(MEMORIES()) } });
+  await sleep(1100); alive(id);
+  await type(id, SECOND);
+  const S2 = { title: SECOND, ago: "just now", turns: 1, phase: "Working", selected: true };
+  add(said(SECOND));
+  setStrip({ title: SECOND, turn: 0, session: 0 });
+  setDock({ title: SECOND, working: true, activity: "Thinking", elapsed: "1s" });
+  shell({ phase: "Working", doing: SECOND, sessions: [S2, ...old], context: { used: 11200 } });
+
+  chapter("Recall brings back the earlier fix");
+  await sleep(1400); alive(id);
+  setDock({ title: SECOND, working: true, activity: "Read a memory", elapsed: "3s" });
+  await step(id, 600, calls([memoryCall({ command: "get", memory_id: SOLUTION, took: "0.1s", body: GET_OUTPUT, open: true })]),
+    { toolCalls: 1, context: { used: 12900 }, memory: { session: [{ verb: "Read", title: "Raise the delivery timeout to 10 s", kind: "solution" }] } });
+  await sleep(2600); alive(id);
+  setDock({ title: SECOND, working: true, activity: "Read a session", elapsed: "7s" });
+  await step(id, 700, calls([sessionsCall({ session_id: SESSION_FIX, took: "0.2s" })]), { toolCalls: 2, context: { used: 16800 } });
+  await step(id, 900, calls([call({ kind: "read", detail: "src/webhooks/retry.rs", took: "0.1s" })]), { toolCalls: 3, context: { used: 19400 } });
+  setDock({ title: SECOND, working: true, activity: "Edit src/webhooks/retry.rs", elapsed: "15s" });
+  await step(id, 1100, calls([call({ kind: "edit", verb: "Edit", detail: "src/webhooks/retry.rs", took: "0.1s", body: editBody("src/webhooks/retry.rs", ["@@ -31,4 +31,4 @@", "-    let client = Client::builder().timeout(Duration::from_secs(5)).build()?;", "+    let client = deliver::client()?;"]) })]),
+    { toolCalls: 4, context: { used: 21800 }, changes: [{ path: "src/webhooks/retry.rs", state: "M", added: 1, removed: 1 }], graph: [{ path: "src/webhooks/retry.rs", state: "M", definitions: 4, uses: 2, usedBy: 1 }] });
+  await step(id, 1000, calls([call({ kind: "shell", detail: "cargo test webhooks", took: "7.9s", body: output(["test result: ok. 15 passed; 0 failed"]), open: true })]), { toolCalls: 5, context: { used: 23500 } });
+  await step(id, 1300, answer(`Memory recalled a fix from an earlier session. Session \`${SESSION_FIX.slice(0, 8)}\` ("${FIRST}") raised the delivery timeout to 10 s on 2026-10-03.\n\nRetries still stopped at 5 s, because \`retry.rs\` built its own client with the old limit. It now uses \`deliver::client()\`, so retries also wait 10 s. The webhook tests pass.`), null);
+  add(footer("34s", { calls: 5, read: 1, edited: 1, added: 1, removed: 1 }));
+  S2.phase = "Finished";
+  setDock({ title: SECOND });
+  setStrip({ title: SECOND, turn: 24100, session: 24100, hit: "68.2%" });
+  shell({ phase: "Finished", sessions: [S2, ...old], context: { used: 24100 } });
+  await sleep(2400); alive(id);
+
+  chapter("Manage: the memory, its links and its history");
+  await click(q("#sh-memory-manage"), id);
+  memPaint(); await sleep(1500); alive(id);
+  await click(q(`[data-id="${SOLUTION}"]`), id);
+  memOpen(SOLUTION); memPaint(); await sleep(2200); alive(id);
+  await click(q('[data-act="History"]'), id);
+  MEM.panel = "history"; MEM.versions = memVersions(memById(SOLUTION)); memPaint(); await sleep(1800); alive(id);
+  await click(q('[data-act="Back to the memory"]'), id);
+  MEM.panel = "detail"; memPaint(); await sleep(800); alive(id);
+
+  chapter("Edit one field, and the panel follows");
+  await click(q('[data-act="Edit"]'), id);
+  const m = memById(SOLUTION);
+  MEM.panel = "edit"; MEM.draft = { title: m.title, content: m.content, tags: m.tags.join(", "), importance: String(m.importance), typing: "title" }; memPaint(); await sleep(900); alive(id);
+  await pointTo($("mem-edit-title"), id, 0.9);
+  for (const word of ["Raise the delivery timeout to 10 s", "Raise the ", EDITED_TITLE]) {
+    if (word === "Raise the ") for (let n = MEM.draft.title.length; n > word.length; n--) { MEM.draft.title = MEM.draft.title.slice(0, -1); memPaint(); await sleep(22); alive(id); }
+    else for (const ch of word.slice(MEM.draft.title.length)) { MEM.draft.title += ch; memPaint(); await sleep(45); alive(id); }
+  }
+  await sleep(700); alive(id);
+  await click(q('[data-act="Save"]'), id);
+  memSave("2026-10-21T15:12:07.604Z"); memPaint();
+  shell({ memory: { session: [{ verb: "Read", title: EDITED_TITLE, kind: "solution" }], recent: briefsOf(MEM.mems) } });
+  await sleep(1800); alive(id);
+  await click(q('[data-act="History"]'), id);
+  MEM.panel = "history"; MEM.versions = memVersions(memById(SOLUTION)); memPaint(); await sleep(2600); alive(id);
+  await click(q('[data-act="Close"]'), id);
+  closeScreen(); await sleep(400); alive(id);
+  await pointTo(q(`[data-memory="${EDITED_TITLE}"]`), id);
+  await sleep(2600); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

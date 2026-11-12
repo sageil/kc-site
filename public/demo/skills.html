@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Skills Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const DIR = { Project: "/Users/you/dev/acme-api/.koda/skills", Global: "/Users/you/.config/kc/skills", Shared: "/Users/you/.agents/skills" };
+const BASE = [
+  { name: "deep-research", place: "Project", desc: "Researches a question in docs/ first, then on the web, and cites each source in the answer.", files: 2 },
+  { name: "postgres-migrations", place: "Project", desc: "Writes and checks migrations: one change per file, idempotent DDL, and a down step for each up step.", files: 2, url: "https://github.com/acme-tools/skills/tree/main/postgres-migrations" },
+  { name: "deep-research", place: "Global", builtin: true, desc: "Researches a question across many sources, on the web and in the repository, with parallel researcher subagents, and synthesizes a cited answer or report. Use it when the user asks for research, a comparison of options, a survey of approaches, or an answer that needs several independent sources checked.", files: 1, tools: "web_search web_fetch", shadowed: "Project" },
+  { name: "koda-hooks", place: "Global", builtin: true, desc: "Writes and fixes Koda hooks (hooks.json). Use it when the user wants a command to run automatically at a point in a session — before or after a tool call, when an approval would be asked, when a prompt is sent, when a turn ends, around compaction, at session start or end — or asks why a hook did not run.", files: 1 },
+  { name: "ui-design", place: "Global", builtin: true, desc: "Designs and restyles user interfaces with a deliberate visual direction. Use it when asked to design, build, restyle or polish web pages, components, dashboards or app screens, or to change their layout, typography, color or interaction.", files: 1 },
+  { name: "web", place: "Global", builtin: true, desc: "Searches the web and reads pages. Use it when the task needs information from the internet, current documentation or releases, or when the user gives a URL to read.", files: 1, tools: "web_search web_fetch" },
+  { name: "pdf-forms", place: "Shared", desc: "Fills, flattens and extracts the fields of PDF forms.", files: 3 },
+];
+const LINK = "https://github.com/acme-tools/skills/tree/main/release-notes";
+const RELEASE = { name: "release-notes", place: "Project", desc: "Writes release notes from the commits since the last tag. Use it when the user asks for a changelog or release notes.", files: 2, url: LINK };
+const RELEASE_BODY = `---
+name: release-notes
+description: Writes release notes from the commits since the last tag. Use it when the user asks for a changelog or release notes.
+---
+
+# Release notes
+
+1. Find the last tag with \`git describe --tags --abbrev=0\`.
+2. List the commits since it with \`scripts/changelog.sh <tag>\`.
+3. Group them under Added, Changed and Fixed. One line each, in the user's words.
+4. Skip merge commits and version bumps.`;
+const ASK = "Write the release notes for v2.4.0 in CHANGELOG.md.";
+const NOT_A_GUARANTEE = "A clean scan does not prove a skill is safe. Read what it tells the model to do before you use it.";
+const CAPTION = "What the agent can load: from this project, your global folder and shared tools.";
+const SOURCE_TONE = { Project: "cyan", Global: "purple", Shared: "amber" };
+const q = (s) => document.querySelector(s);
+const tag = (tone, inner, extra = "") => `<span class="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-app-3xs ${TONES.chip[tone]}${extra}">${inner}</span>`;
+
+const ui = {};
+function reset() { Object.assign(ui, { skills: BASE.slice(), page: null, adding: false, link: "", fetch: "idle", place: "Project", chosen: [], active: -1 }); }
+
+function skillTags(k) {
+  return `<div class="flex flex-wrap items-center gap-1.5">${tag(k.builtin ? "emerald" : SOURCE_TONE[k.place], `<span class="size-1.5 rounded-full bg-current"></span>${k.builtin ? "Built-in" : k.place}`)}${k.url ? tag("neutral", "from URL") : ""}${k.shadowed ? tag("neutral", `hidden by ${k.shadowed}`, " line-through") : ""}${ui.chosen.includes(k.name) && !k.shadowed ? tag("emerald", "✦ in message") : ""}</div>`;
+}
+function card(k, i) {
+  const usable = !k.shadowed, inMsg = ui.chosen.includes(k.name) && usable;
+  const frame = i === ui.active ? "border-accent-cyan/60 ring-1 ring-accent-cyan/20" : "border-hairline hover:border-muted";
+  const removable = !k.builtin && k.place !== "Shared";
+  return `<div id="koda-skill-card-${i}" data-card="${k.place}/${k.name}" role="button" tabindex="-1" aria-label="Open ${k.name}" class="group relative flex min-w-0 cursor-pointer flex-col gap-1.5 rounded-lg border p-3 text-left transition ${frame} ${i === ui.active ? "bg-hover" : "bg-tool"} ${usable ? "" : "opacity-60"}${k.fresh ? " enter" : ""}"><div class="flex min-w-0 items-start gap-2"><span class="min-w-0 grow truncate font-mono text-app-xs font-semibold text-ink">${k.name}</span>${removable ? `<input type="checkbox" class="koda-check mt-0.5" aria-label="Select ${k.name}" tabindex="-1">` : ""}</div><p class="line-clamp-2 min-h-8 text-app-2xs text-muted">${esc(k.desc)}</p>${skillTags(k)}<div class="flex items-center justify-between gap-2 font-mono text-app-3xs text-dim"><span>${k.files === 1 ? "1 file" : `${k.files} files`}</span>${k.tools ? `<span class="ml-auto truncate">+ ${k.tools}</span>` : ""}${usable ? `<button type="button" class="${inMsg ? "cursor-pointer rounded border border-accent-emerald/60 bg-accent-emerald/20 px-2 font-mono text-app-3xs text-accent-emerald-bright" : "cursor-pointer rounded border border-accent-emerald/35 bg-accent-emerald/8 px-2 font-mono text-app-3xs text-accent-emerald-bright transition hover:bg-accent-emerald/15"}" title="${inMsg ? "Remove from the next message" : "Attach to the next message"}">${inMsg ? "✦ In message" : "✦ Use"}</button>` : ""}</div></div>`;
+}
+function grid() {
+  const points = ["All", "Project", "Global", "Shared"].map((p) => [p, p === "All" ? ui.skills.length : ui.skills.filter((k) => k.place === p).length]);
+  const bar = `<div class="flex shrink-0 flex-col gap-2 border-b border-hairline px-4 py-3"><div class="flex flex-wrap items-center gap-3"><div class="relative flex min-w-52 grow items-center">${icon("pointer-events-none absolute left-2.5 size-3.5 text-muted", GLYPH.search)}<span class="w-full rounded-md border border-hairline bg-panel py-1.5 pr-2.5 pl-8 font-mono text-app-xs text-muted">Filter skills by name or description...</span></div><div class="flex gap-1" role="tablist">${points.map(([p, n]) => `<button type="button" role="tab" aria-selected="${p === "All"}" class="${p === "All" ? "cursor-pointer rounded-md bg-elevated px-3 py-1 font-mono text-app-2xs text-accent-cyan-bright" : "cursor-pointer rounded-md px-3 py-1 font-mono text-app-2xs text-muted transition hover:text-ink"}">${p} ${n}</button>`).join("")}</div>${actionButton("Check for updates", "secondary", GLYPH.reload)}${actionButton("Add skill", "primary", GLYPH.plus)}</div><span class="font-mono text-app-2xs text-dim">${ui.skills.length} skills · on a name clash the later folder wins: Project › Global › Shared</span></div>`;
+  let index = 0;
+  const groups = ["Project", "Global", "Shared"].map((p) => {
+    const members = ui.skills.filter((k) => k.place === p);
+    return `<div><div class="flex justify-between gap-3 px-0.5 pt-3.5 pb-2 font-mono text-app-3xs text-dim"><span class="tracking-wider uppercase">${p}</span><span class="truncate">${DIR[p]}</span></div><div class="grid grid-cols-3 gap-2.5">${members.map((k) => card(k, index++)).join("")}</div></div>`;
+  }).join("");
+  return `<main class="relative flex min-h-0 grow flex-col overflow-hidden bg-canvas">${screenHeader({ glyph: GLYPH.sparkle, tone: "purple", title: "Skills", caption: CAPTION })}${bar}<div class="min-h-0 grow overflow-y-auto px-4 pt-1 pb-4">${groups}</div>${screenFooter('<span class="hidden md:inline">←→↑↓ move · ↵ open · u use · space select</span>', actionButton("Close", "secondary", GLYPH.close))}${ui.adding ? dialog() : ""}</main>`;
+}
+function findings(rows) {
+  return `<div class="flex flex-col gap-1">${rows.length ? rows.map(([sev, tone, file, what]) => `<div class="flex min-w-0 items-start gap-2 text-app-xs">${tag(tone, sev, " shrink-0")}<span class="shrink-0 font-mono text-app-2xs text-dim">${file}</span><span class="min-w-0 text-ink/90">${what}</span></div>`).join("") : '<p class="text-app-xs text-muted">Nothing found.</p>'}</div>`;
+}
+function dialog() {
+  const field = "w-full rounded-md border border-hairline bg-panel px-2.5 py-1.5 font-mono text-app-xs text-ink placeholder:text-muted focus:border-accent-cyan/60 focus:outline-none";
+  const local = findings([["Info", "neutral", "scripts/changelog.sh", "a script: it runs only when a model calls it through the shell, which asks for approval"]]);
+  const scan = ui.fetch === "scanning" ? '<p class="text-app-xs text-muted">Scanning for secrets and known-vulnerable packages…</p>' + local : local;
+  const preview = ui.fetch === "fetching" ? '<p class="text-app-xs text-muted">Fetching…</p>' : ui.fetch === "idle" ? "" : `<div class="enter flex flex-col gap-2 rounded-md border border-hairline bg-tool p-3"><div class="flex items-center gap-2"><span class="font-mono text-app-sm font-semibold text-ink">release-notes</span><span class="font-mono text-app-3xs text-dim">GitHub folder</span><span class="ml-auto font-mono text-app-3xs text-dim">2 files · 2 KB</span></div><p class="text-app-xs text-muted">${RELEASE.desc}</p><div class="rounded border border-hairline">${["SKILL.md", "scripts/changelog.sh"].map((f) => `<div class="border-b border-hairline-soft px-2 py-1 font-mono text-app-2xs text-ink last:border-b-0">${f}</div>`).join("")}</div><span class="mt-1 text-app-xs font-medium text-ink">Scan</span><div id="scan">${scan}</div><span class="mt-1 text-app-xs font-medium text-ink">Model review</span><div class="flex items-center gap-2"><p class="grow text-app-2xs text-dim">Optional. The model reads the files without tools and gives a verdict. It is advice, not a check.</p>${actionButton("Ask the model")}</div><p class="text-app-2xs text-dim">${NOT_A_GUARANTEE}</p></div>`;
+  const ready = ui.fetch === "ready" || ui.fetch === "scanning";
+  const places = ready ? `<span class="mt-1 text-app-xs text-muted">Install to</span><div class="grid grid-cols-2 gap-2">${[["Project", "This project"], ["Global", "Global (every project)"]].map(([p, l]) => `<button type="button" data-place="${p}" class="${ui.place === p ? "flex cursor-pointer flex-col items-start gap-0.5 rounded-md border border-accent-indigo/55 bg-accent-indigo/8 px-2.5 py-2 text-left" : "flex cursor-pointer flex-col items-start gap-0.5 rounded-md border border-hairline px-2.5 py-2 text-left hover:border-muted"}"><span class="text-app-xs text-ink">${l}</span><span class="break-all font-mono text-app-3xs text-dim">${DIR[p]}/release-notes/</span></button>`).join("")}</div>` : "";
+  return `<div class="absolute inset-0 z-20 flex items-center justify-center bg-black/30 p-6"><div id="koda-add-skill" role="dialog" aria-label="Add a skill" class="enter flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-hairline bg-panel elevated-shadow"><div class="flex flex-col gap-2 border-b border-hairline px-4 pt-3.5"><h2 class="text-app font-semibold text-ink">Add a skill</h2><div class="flex gap-1" role="tablist"><button type="button" role="tab" aria-selected="true" class="cursor-pointer border-b-2 border-accent-indigo px-2.5 py-1.5 text-app-xs text-ink">From a URL</button><button type="button" role="tab" aria-selected="false" class="cursor-pointer border-b-2 border-transparent px-2.5 py-1.5 text-app-xs text-muted hover:text-ink">New skill</button></div></div><div class="flex min-h-0 grow flex-col gap-2 overflow-y-auto px-4 py-3"><label class="text-app-xs text-muted">Skill URL</label><div class="flex gap-2"><span id="link" class="${field} ${ui.link ? "" : "text-muted"}">${ui.link || "https://github.com/owner/repo/tree/main/skills/name"}${ui.typing ? '<span class="caret"></span>' : ""}</span>${actionButton("Fetch")}</div><p class="text-app-2xs text-dim">A SKILL.md file, a GitHub folder (/tree/…), or a .zip or .tar.gz that holds one skill folder. Only https links.</p>${preview}${places}</div><div class="flex justify-end gap-2 border-t border-hairline px-4 py-2.5">${actionButton("Cancel")}${actionButton("Install", "primary")}</div></div></div>`;
+}
+function page() {
+  const k = RELEASE, inMsg = ui.chosen.includes(k.name);
+  const actions = actionButton(inMsg ? "In the next message ✓" : "Use in a message", "primary", GLYPH.sparkle, "use") + actionButton("Edit SKILL.md", "secondary", GLYPH.pencil) + actionButton("Open in editor", "secondary", GLYPH.code) + actionButton("Copy to global", "secondary", GLYPH.copy) + actionButton("Scan", "secondary", GLYPH.shield) + actionButton("Remove", "danger");
+  return `<main class="flex min-h-0 grow flex-col overflow-hidden bg-canvas">${screenHeader({ glyph: GLYPH.sparkle, tone: "purple", title: "Skills", caption: CAPTION })}<div class="min-h-0 grow overflow-y-auto px-6 py-4"><button type="button" data-act="back" class="cursor-pointer text-app-xs text-muted hover:text-ink">← Skills</button><div class="mt-2 flex flex-wrap items-center gap-2.5"><h2 class="font-mono text-app-lg font-semibold text-ink">${k.name}</h2>${skillTags(k)}</div><p class="mt-2 text-app-sm text-muted">${k.desc}</p><div class="my-3.5 grid grid-cols-[120px_1fr] gap-x-3 gap-y-1.5 font-mono text-app-xs"><span class="text-dim">Folder</span><span class="break-all text-ink">${DIR.Project}/release-notes</span><span class="text-dim">Installed from</span><span class="break-all text-ink">${LINK}<span class="text-dim"></span></span></div><div class="mb-1.5 text-app-xs text-dim">SKILL.md</div><pre class="max-h-80 overflow-auto rounded-md border border-hairline bg-tool p-3 font-mono text-app-xs leading-relaxed whitespace-pre-wrap text-ink/90">${esc(RELEASE_BODY)}</pre><div class="mt-3.5 mb-1.5 text-app-xs text-dim">Files</div><div class="rounded-md border border-hairline bg-tool">${[["SKILL.md", ""], ["scripts/changelog.sh", "runs only through shell, with approval"]].map(([f, n]) => `<div class="flex justify-between gap-3 border-b border-hairline-soft px-2.5 py-1.5 text-app-xs last:border-b-0"><button type="button" class="cursor-pointer truncate font-mono text-ink hover:text-accent-cyan-bright" title="Open in the editor">${f}</button>${n ? `<span class="shrink-0 text-dim">${n}</span>` : ""}</div>`).join("")}</div><div class="mt-4 flex flex-wrap gap-2">${actions}</div><p class="mt-3 flex items-center gap-1.5 text-app-2xs text-dim">${icon("size-3", GLYPH.terminal)}A script runs only when a model calls it through shell, and that asks for approval like any command.</p></div>${screenFooter("", actionButton("Close", "secondary", GLYPH.close))}</main>`;
+}
+const paint = () => openScreen("skills", ui.page ? page() : grid());
+
+const GROUP = '<div class="flex flex-col py-1">';
+function add(html) {
+  const last = $("log").lastElementChild;
+  if (html.startsWith(GROUP) && last?.dataset.calls) last.insertAdjacentHTML("beforeend", html.slice(GROUP.length, -6));
+  else $("log").insertAdjacentHTML("beforeend", html.startsWith(GROUP) ? html.replace(GROUP, '<div data-calls="1" class="flex flex-col py-1">') : html);
+  $("scroll").scrollTop = $("scroll").scrollHeight;
+}
+const setDock = (o) => { $("dock-slot").innerHTML = dock(o); };
+const step = async (id, ms, html, patch) => { await sleep(ms); alive(id); if (html) add(html); if (patch) shell(patch); };
+
+async function play(id) {
+  const p = $("pointer"); p.style.left = "640px"; p.style.top = "820px";
+  reset();
+  mountShell(sessionColumn(), { sessions: [{ title: "Deliveries to a slow endpoint fail again.", ago: "2h ago", turns: 1 }, { title: "Webhooks time out in staging. Find out why and fix it.", ago: "18d ago", turns: 1 }, { title: "Rotate the webhook secret", ago: "22d ago", turns: 3 }] });
+
+  chapter("Every skill, by folder");
+  paint(); await sleep(2600); alive(id);
+  await pointTo(q('[data-card="Global/deep-research"]'), id, 0.5, 0.75);
+  await sleep(1600); alive(id);
+
+  chapter("Add a skill from a link");
+  await click(q('[data-act="Add skill"]'), id);
+  ui.adding = true; ui.typing = true; paint(); await sleep(700); alive(id);
+  for (let i = 1; i <= LINK.length; i += 3) { ui.link = LINK.slice(0, i); paint(); await sleep(30); alive(id); }
+  ui.link = LINK; ui.typing = false; paint(); await sleep(500); alive(id);
+  await click(q('[data-act="Fetch"]'), id);
+  ui.fetch = "fetching"; paint(); await sleep(1000); alive(id);
+
+  chapter("The files and the scan");
+  ui.fetch = "scanning"; paint(); await sleep(1200); alive(id);
+  ui.fetch = "ready"; paint(); await sleep(2600); alive(id);
+
+  chapter("Choose a folder and install");
+  await click(q('[data-place="Global"]'), id);
+  ui.place = "Global"; paint(); await sleep(600); alive(id);
+  await click(q('[data-place="Project"]'), id);
+  ui.place = "Project"; paint(); await sleep(700); alive(id);
+  await click(q('[data-act="Install"]'), id);
+  ui.adding = false; ui.skills = [{ ...RELEASE, fresh: true }, ...BASE]; ui.page = "release-notes"; paint(); await sleep(1600); alive(id);
+  await click(q('[data-act="back"]'), id);
+  ui.page = null; ui.active = 0; paint(); await sleep(2000); alive(id);
+
+  chapter("The skill's page");
+  await click(q('[data-card="Project/release-notes"]'), id);
+  ui.skills[0].fresh = false; ui.page = "release-notes"; paint(); await sleep(2800); alive(id);
+
+  chapter("Use it in a message");
+  await click(q('[data-act="use"]'), id);
+  ui.chosen = ["release-notes"]; paint(); await sleep(1400); alive(id);
+  await click(q('[data-act="Close"]'), id);
+  closeScreen(); setDock({ skills: ui.chosen }); await sleep(1800); alive(id);
+  await click($("prompt"), id);
+  for (let i = 1; i <= ASK.length; i++) { setDock({ skills: ui.chosen, text: ASK.slice(0, i), caret: true }); await sleep(30); alive(id); }
+  await sleep(700); alive(id);
+  await click($("send"), id);
+
+  chapter("The agent follows the skill");
+  const S = { title: ASK, ago: "just now", turns: 1, phase: "Working", selected: true };
+  const others = SH.sessions;
+  $("strip-slot").innerHTML = sessionStrip({ title: ASK, turn: 0, session: 0 });
+  add(said(ASK, [], ["release-notes"]));
+  setDock({ title: ASK, working: true, activity: "Thinking", elapsed: "1s" });
+  shell({ phase: "Working", doing: ASK, sessions: [S, ...others], context: { used: 10400 } });
+  await step(id, 1200, calls([call({ kind: "skill", detail: "release-notes · scripts/changelog.sh", took: "0.1s" })]), { toolCalls: 1, context: { used: 11300 } });
+  setDock({ title: ASK, working: true, activity: "$ git describe --tags --abbrev=0", elapsed: "4s" });
+  await step(id, 1100, calls([call({ kind: "shell", detail: "git describe --tags --abbrev=0", took: "0.1s", body: output(["v2.3.1"]), open: true })]), { toolCalls: 2, context: { used: 11900 } });
+  await step(id, 1100, calls([call({ kind: "shell", detail: "git log --no-merges --oneline v2.3.1..HEAD", took: "0.1s", body: output(["4be1d07 Use the delivery client in the retry worker", "9a3c2f1 Raise the delivery timeout to 10 s", "e71b0c4 Add webhook replay to the dashboard", "c08d5a9 Stop retrying on 410 Gone"]), open: true })]), { toolCalls: 3, context: { used: 13200 } });
+  setDock({ title: ASK, working: true, activity: "Edit CHANGELOG.md", elapsed: "11s" });
+  await step(id, 1300, calls([call({ kind: "edit", verb: "Edit", detail: "CHANGELOG.md", took: "0.1s", body: editBody("CHANGELOG.md", ["@@ -1,3 +1,13 @@", " # Changelog", " ", "+## v2.4.0", "+", "+### Added", "+- Replay a webhook delivery from the dashboard.", "+", "+### Fixed", "+- Deliveries and retries wait 10 s for a slow endpoint.", "+- Dead endpoints that answer 410 Gone are not retried.", "+"]) })]),
+    { toolCalls: 4, context: { used: 15100 }, changes: [{ path: "CHANGELOG.md", state: "M", added: 10, removed: 0 }] });
+  await step(id, 1400, answer("I followed **release-notes**. The last tag is `v2.3.1`, and four commits follow it. `CHANGELOG.md` now has a v2.4.0 section with one Added line and two Fixed lines."), null);
+  add(footer("19s", { calls: 4, edited: 1, added: 10, removed: 0 }));
+  S.phase = "Finished";
+  $("strip-slot").innerHTML = sessionStrip({ title: ASK, turn: 15600, session: 15600, hit: "64.1%" });
+  setDock({ title: ASK });
+  shell({ phase: "Finished", sessions: [S, ...others], context: { used: 15600 } });
+  await sleep(3000); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

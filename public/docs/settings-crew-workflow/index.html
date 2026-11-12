@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crew Workflow settings · KodaCode Docs</title>
+<meta name="description" content="Settings for the two Crew workflows, Supervised and Self-managed: their models, limits, retries, skills and memory, and how private copies are made.">
+<link rel="canonical" href="https://kodacode.dev/docs/settings-crew-workflow/">
+<meta name="theme-color" content="#f4f0e8">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="KodaCode">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://kodacode.dev/docs/settings-crew-workflow/">
+<meta property="og:title" content="Crew Workflow settings · KodaCode Docs">
+<meta property="og:description" content="Settings for the two Crew workflows, Supervised and Self-managed: their models, limits, retries, skills and memory, and how private copies are made.">
+<meta property="og:image" content="https://kodacode.dev/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="KodaCode: Agents write code, KodaCode orchestrates.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Crew Workflow settings · KodaCode Docs">
+<meta name="twitter:description" content="Settings for the two Crew workflows, Supervised and Self-managed: their models, limits, retries, skills and memory, and how private copies are made.">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"TechArticle","@id":"https://kodacode.dev/docs/settings-crew-workflow/#article","headline":"Crew Workflow settings · KodaCode Docs","description":"Settings for the two Crew workflows, Supervised and Self-managed: their models, limits, retries, skills and memory, and how private copies are made.","url":"https://kodacode.dev/docs/settings-crew-workflow/","inLanguage":"en","isPartOf":{"@type":"WebSite","@id":"https://kodacode.dev/#site","name":"KodaCode","url":"https://kodacode.dev/"},"about":{"@type":"SoftwareApplication","name":"KodaCode","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Windows, Linux"},"publisher":{"@type":"Organization","@id":"https://kodacode.dev/#org","name":"KodaCode","logo":"https://kodacode.dev/assets/icon-512.png"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"KodaCode","item":"https://kodacode.dev/"},{"@type":"ListItem","position":2,"name":"Docs","item":"https://kodacode.dev/docs/"},{"@type":"ListItem","position":3,"name":"Crew Workflow settings","item":"https://kodacode.dev/docs/settings-crew-workflow/"}]}]}</script>
+<link rel="icon" href="../../assets/icon.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/favicon.ico" sizes="any">
+<link rel="manifest" href="../../site.webmanifest">
+<script src="../../theme.js?v=7"></script>
+<link rel="stylesheet" href="../../fonts/fonts.css">
+<link rel="stylesheet" href="../../site.css?v=8">
+<link rel="stylesheet" href="../../docs.css?v=1">
+<script src="../../docs.js?v=1" defer></script>
+</head>
+<body class="docs-body" data-root="../../">
+<div class="sheet wide">
+  <header class="bar">
+    <a class="id" href="../../"><img src="../../assets/icon.svg" alt="">KodaCode</a>
+    <nav aria-label="Pages"><details class="menu"><summary>Features</summary><div class="panel"><div><span class="kicker">Works without you</span><a href="../../agents/"><b>Agents</b><span>Hand each job to the right agent</span></a><a href="../../crew/"><b>Crew</b><span>Cheap models, checked by code</span></a><a href="../../automations/"><b>Automations</b><span>A cheap model checks, an agent acts</span></a><a href="../../goals/"><b>Goals</b><span>Plan it and leave it</span></a></div><div><span class="kicker">In the session</span><a href="../../sessions/"><b>Sessions</b><span>Steer it, rewind it, pick up where you left off</span></a><a href="../../terminal/"><b>Terminal</b><span>A shell in your project’s container, beside the agent</span></a><a href="../../editor/"><b>Editor</b><span>Ask about a selection, review edits in place</span></a></div><div><span class="kicker">Knows your code</span><a href="../../graph/"><b>Code graph</b><span>Who calls what, without searching</span></a><a href="../../memory/"><b>Memory</b><span>Problems, fixes and decisions, linked by why</span></a><a href="../../review/"><b>Code review</b><span>Four reviewers, worst problems first</span></a></div><div><span class="kicker">Stays in bounds</span><a href="../../control/"><b>Control</b><span>Ask first, or let it run</span></a><a href="../../isolation/"><b>Isolation</b><span>A container per project, your terminal inside</span></a><a href="../../redaction/"><b>Redaction</b><span>Keys stay out of the model and out of git</span></a></div><div><span class="kicker">Plugs into</span><a href="../../models/"><b>Models</b><span>Yours, a different one per agent</span></a><a href="../../mcp/"><b>MCP servers</b><span>Tools from any MCP server</span></a><a href="../../skills/"><b>Skills</b><span>Teach it once, from a link or your own</span></a></div></div></details><a href="../../docs/" aria-current="page">Docs</a><a href="../../models/">Models</a><a href="../../faq/">FAQ</a></nav>
+    <div class="end"><details class="appearance"><summary aria-label="Appearance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/><circle cx="10.5" cy="7.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="7.5" r="1.2" fill="currentColor"/></svg></summary><div class="look" role="dialog" aria-label="Appearance"><b>Appearance</b><span class="kicker">Mode</span><div class="seg"><button type="button" data-mode="light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>Light</button><button type="button" data-mode="dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.1A8.5 8.5 0 1 1 9.9 3.5a6.6 6.6 0 0 0 10.6 10.6z"/></svg>Dark</button><button type="button" data-mode="system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>System</button></div><span class="kicker">Colour</span><div class="swatches"><button type="button" data-palette="pure" data-name="Pure" aria-label="Pure" style="--l:#ffffff;--d:#000000"></button><button type="button" data-palette="paper" data-name="Paper" aria-label="Paper" style="--l:#f4f0e8;--d:#131419"></button><button type="button" data-palette="midnight" data-name="Midnight" aria-label="Midnight" style="--l:#eef1f8;--d:#0b1020"></button><button type="button" data-palette="graphite" data-name="Graphite" aria-label="Graphite" style="--l:#f0f0ee;--d:#121214"></button><button type="button" data-palette="forest" data-name="Forest" aria-label="Forest" style="--l:#eef3ee;--d:#0c1411"></button><button type="button" data-palette="plum" data-name="Plum" aria-label="Plum" style="--l:#f5f0f7;--d:#140f1d"></button></div><span class="kicker">Background</span><div class="thumbs"><button type="button" class="thumb" data-bg="grid"><span class="art"><span class="grid"></span></span>Grid</button><button type="button" class="thumb" data-bg="network"><span class="art"><canvas data-kind="network"></canvas></span>Network</button><button type="button" class="thumb" data-bg="dots"><span class="art"><canvas data-kind="dots"></canvas></span>Dots</button><button type="button" class="thumb" data-bg="aurora"><span class="art"><span class="aurora"><i></i><i></i><i></i></span></span>Aurora</button><button type="button" class="thumb" data-bg="glow"><span class="art"><span class="glow"></span></span>Glow</button><button type="button" class="thumb" data-bg="still"><span class="art"><span class="still"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7v10M15 7v10"/></svg></span></span>Still</button></div></div></details><a class="dl" href="../../download/">Coming soon</a></div>
+  </header>
+  <div class="docs">
+    <aside class="docs-nav" id="docs-nav" aria-label="Documentation">
+      <div class="docs-search"><input type="search" id="docs-q" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off"><kbd>/</kbd><div class="docs-results" id="docs-results" role="listbox" hidden></div></div>
+      <nav><details class="group" open><summary>Getting started</summary><a href="../../docs/">Introduction</a><a href="../../docs/install/">Install</a><a href="../../docs/quickstart/">Quickstart</a><a href="../../docs/projects/">Projects</a></details><details class="group" open><summary>Working with the agent</summary><a href="../../docs/sessions/">Sessions</a><a href="../../docs/prompting/">The prompt box</a><a href="../../docs/tool-calls/">Tool calls in the transcript</a><a href="../../docs/plan-mode/">Plan mode</a><a href="../../docs/approvals/">Approvals</a><a href="../../docs/shell/">Commands &amp; the terminal</a><a href="../../docs/editor/">Editor</a><a href="../../docs/changes/">Changes &amp; the inspector</a></details><details class="group" open><summary>Features</summary><a href="../../docs/agents/">Agents</a><a href="../../docs/crew/">Crew</a><a href="../../docs/goals/">Goals</a><a href="../../docs/automations/">Automations</a><a href="../../docs/code-graph/">Code graph</a><a href="../../docs/memory/">Memory</a><a href="../../docs/review/">Code review</a><a href="../../docs/isolation/">Isolation</a><a href="../../docs/redaction/">Redaction</a><a href="../../docs/models/">Models &amp; providers</a><a href="../../docs/mcp/">MCP servers</a><a href="../../docs/skills-web/">Skills &amp; web</a></details><details class="group" open><summary>Settings</summary><a href="../../docs/settings/">Settings overview</a><a href="../../docs/settings-general/">General</a><a href="../../docs/settings-background-work/">Background work</a><a href="../../docs/settings-permissions-sandbox/">Permissions &amp; sandbox</a><a href="../../docs/settings-code-review/">Code review</a><a href="../../docs/settings-search/">Search</a><a href="../../docs/settings-mcp-servers/">MCP servers</a><a href="../../docs/settings-hooks/">Hooks</a><a href="../../docs/settings-source-version-control/">Source version control</a><a href="../../docs/settings-memory/">Memory</a><a href="../../docs/settings-appearance/">Appearance</a><a href="../../docs/settings-crew-workflow/" aria-current="page">Crew Workflow</a></details><details class="group" open><summary>Reference</summary><a href="../../docs/commands/">Slash commands</a><a href="../../docs/shortcuts/">Keyboard shortcuts</a><a href="../../docs/tools/">Agent tools</a><a href="../../docs/files/">Files &amp; folders</a><a href="../../docs/themes/">Themes</a><a href="../../docs/troubleshooting/">Troubleshooting</a></details></nav>
+    </aside>
+    <main class="docs-main">
+      <button type="button" class="docs-menu" id="docs-menu" aria-controls="docs-nav" aria-expanded="false">Menu</button>
+      <div class="crumbs"><a href="../../docs/">Docs</a><span>/</span>Settings</div>
+      <article class="prose">
+        <h1>Crew Workflow</h1>
+        
+        <p>Frontier-level coding results from cheap or local models. /crew-supervised and /crew-self-managed hand one task to them in a private copy of the project. Koda runs the checks itself and applies work that passes to the working tree, uncommitted.</p>
+<h2 id="supervised"><a class="anchor" href="#supervised" aria-hidden="true">#</a>Supervised</h2>
+<p>Used by /crew-supervised. Without a leader and a worker model, it opens this page and runs nothing.</p>
+<h3 id="leader-model"><a class="anchor" href="#leader-model" aria-hidden="true">#</a>Leader model</h3>
+<p>Plans each task, reads the verdicts and decides what to do after a failure. Every leader turn runs on it, whatever model the session uses.</p>
+<h3 id="worker-model"><a class="anchor" href="#worker-model" aria-hidden="true">#</a>Worker model</h3>
+<p>The cheap model that reads the project and writes the code.</p>
+<h3 id="reasoning"><a class="anchor" href="#reasoning" aria-hidden="true">#</a>Reasoning</h3>
+<p>How hard the worker model thinks. Empty leaves its default.</p>
+<h3 id="stronger-model"><a class="anchor" href="#stronger-model" aria-hidden="true">#</a>Stronger model</h3>
+<p>One attempt on this model when the worker's fixes fail.</p>
+<h3 id="review-model"><a class="anchor" href="#review-model" aria-hidden="true">#</a>Review model</h3>
+<p>Optional. Reviews the task, the test and the diff once the check passes, and can only turn an OK into not verified.</p>
+<h3 id="budget-per-task"><a class="anchor" href="#budget-per-task" aria-hidden="true">#</a>Budget per task</h3>
+<p>What one task may spend. A model with no price offers tokens or none.</p>
+<h3 id="retries-after-a-failure"><a class="anchor" href="#retries-after-a-failure" aria-hidden="true">#</a>Retries after a failure</h3>
+<p>How many narrower retries the leader may send for a task that failed. 0 reports the failure at once.</p>
+<h3 id="skills"><a class="anchor" href="#skills" aria-hidden="true">#</a>Skills</h3>
+<p>Lets the worker and research read your skills. The leader never does.</p>
+<h3 id="memory"><a class="anchor" href="#memory" aria-hidden="true">#</a>Memory</h3>
+<p>Lets the worker and research use the project's memory: recall past fixes and store new ones. The leader never does.</p>
+<h2 id="self-managed"><a class="anchor" href="#self-managed" aria-hidden="true">#</a>Self-managed</h2>
+<p>Used by /crew-self-managed. Without a worker model, it opens this page and runs nothing.</p>
+<h3 id="worker-model-2"><a class="anchor" href="#worker-model-2" aria-hidden="true">#</a>Worker model</h3>
+<p>The cheap model that plans, manages and writes the code.</p>
+<h3 id="reasoning-2"><a class="anchor" href="#reasoning-2" aria-hidden="true">#</a>Reasoning</h3>
+<p>How hard the worker model thinks. Empty leaves its default.</p>
+<h3 id="worker-rounds"><a class="anchor" href="#worker-rounds" aria-hidden="true">#</a>Worker rounds</h3>
+<p>The most rounds that run before a last worker finalizes the work.</p>
+<h3 id="open-tasks"><a class="anchor" href="#open-tasks" aria-hidden="true">#</a>Open tasks</h3>
+<p>The longest task list kept.</p>
+<h3 id="skills-2"><a class="anchor" href="#skills-2" aria-hidden="true">#</a>Skills</h3>
+<p>Lets the worker and ideation read your skills. The manager never does.</p>
+<h3 id="memory-2"><a class="anchor" href="#memory-2" aria-hidden="true">#</a>Memory</h3>
+<p>Lets the worker and ideation use the project's memory: recall past fixes and store new ones. The manager never does.</p>
+<h2 id="project"><a class="anchor" href="#project" aria-hidden="true">#</a>Project</h2>
+<p>How a private copy is made.</p>
+<h3 id="dependency-folders"><a class="anchor" href="#dependency-folders" aria-hidden="true">#</a>Dependency folders</h3>
+<p>One per line. Linked into each copy instead of installed. Build output is never linked.</p>
+<h2 id="while-it-runs"><a class="anchor" href="#while-it-runs" aria-hidden="true">#</a>While it runs</h2>
+<h3 id="parallel-jobs"><a class="anchor" href="#parallel-jobs" aria-hidden="true">#</a>Parallel jobs</h3>
+<p>The most crew jobs running at the same time, across all sessions. More wait in a queue and start as others finish.</p>
+<h3 id="recent-crews-and-spend"><a class="anchor" href="#recent-crews-and-spend" aria-hidden="true">#</a>Recent crews and spend</h3>
+<p>Crew jobs in this project that wait for your decision, and what each model has spent.</p>
+<h2 id="defaults-and-config-keys"><a class="anchor" href="#defaults-and-config-keys" aria-hidden="true">#</a>Defaults and config keys</h2>
+<p>Supervised settings are in <code>[crew.supervised]</code> in <code>config.toml</code>:</p>
+<div class="table"><table><thead><tr><th>Setting</th><th>Default</th><th>Key</th></tr></thead><tbody><tr><td>Leader model</td><td>Not chosen. Required.</td><td><code>leader</code></td></tr><tr><td>Worker model</td><td>Not chosen. Required.</td><td><code>worker</code></td></tr><tr><td>Reasoning</td><td>Model default</td><td><code>reasoning</code></td></tr><tr><td>Stronger model</td><td>None</td><td><code>stronger</code></td></tr><tr><td>Review model</td><td>None</td><td><code>review</code></td></tr><tr><td>Budget per task</td><td>$0.50. Tokens default to 1,000,000.</td><td><code>budget</code> = <code>dollars</code>, <code>tokens</code> or <code>none</code>. <code>budget_dollars</code>, <code>budget_tokens</code></td></tr><tr><td>Retries after a failure</td><td>1</td><td><code>retries</code></td></tr><tr><td>Skills</td><td>On</td><td><code>skills</code></td></tr><tr><td>Memory</td><td>Off</td><td><code>memory</code></td></tr></tbody></table></div>
+<p>Self-managed settings are in <code>[crew.self_managed]</code>:</p>
+<div class="table"><table><thead><tr><th>Setting</th><th>Default</th><th>Key</th></tr></thead><tbody><tr><td>Worker model</td><td>Not chosen. Required.</td><td><code>worker</code></td></tr><tr><td>Reasoning</td><td>Model default</td><td><code>reasoning</code></td></tr><tr><td>Worker rounds</td><td>10</td><td><code>rounds</code></td></tr><tr><td>Open tasks</td><td>12</td><td><code>open_tasks</code></td></tr><tr><td>Skills</td><td>On</td><td><code>skills</code></td></tr><tr><td>Memory</td><td>Off</td><td><code>memory</code></td></tr></tbody></table></div>
+<p>Settings for both workflows are in <code>[crew]</code>:</p>
+<div class="table"><table><thead><tr><th>Setting</th><th>Default</th><th>Key</th></tr></thead><tbody><tr><td>Dependency folders</td><td><code>node_modules</code>, <code>.venv</code>, <code>venv</code>, <code>vendor</code></td><td><code>dependency_folders</code></td></tr><tr><td>Parallel jobs</td><td>3</td><td><code>parallel_jobs</code></td></tr></tbody></table></div>
+<p>A dependency folder cannot be build output (<code>dist</code>, <code>build</code>, <code>out</code>, <code>.next</code>, <code>.nuxt</code>, <code>target</code>, <code>coverage</code>), an absolute path or a path with <code>..</code>. See <a href="../crew/">Crew</a>.</p>
+      </article>
+      <nav class="pager" aria-label="Pages"><a class="prev" href="../../docs/settings-appearance/"><span>Previous</span>Appearance</a><a class="next" href="../../docs/commands/"><span>Next</span>Slash commands</a></nav>
+    </main>
+    <aside class="docs-toc" aria-label="On this page"><b>On this page</b><a href="#supervised" class="l2">Supervised</a><a href="#leader-model" class="l3">Leader model</a><a href="#worker-model" class="l3">Worker model</a><a href="#reasoning" class="l3">Reasoning</a><a href="#stronger-model" class="l3">Stronger model</a><a href="#review-model" class="l3">Review model</a><a href="#budget-per-task" class="l3">Budget per task</a><a href="#retries-after-a-failure" class="l3">Retries after a failure</a><a href="#skills" class="l3">Skills</a><a href="#memory" class="l3">Memory</a><a href="#self-managed" class="l2">Self-managed</a><a href="#worker-model-2" class="l3">Worker model</a><a href="#reasoning-2" class="l3">Reasoning</a><a href="#worker-rounds" class="l3">Worker rounds</a><a href="#open-tasks" class="l3">Open tasks</a><a href="#skills-2" class="l3">Skills</a><a href="#memory-2" class="l3">Memory</a><a href="#project" class="l2">Project</a><a href="#dependency-folders" class="l3">Dependency folders</a><a href="#while-it-runs" class="l2">While it runs</a><a href="#parallel-jobs" class="l3">Parallel jobs</a><a href="#recent-crews-and-spend" class="l3">Recent crews and spend</a><a href="#defaults-and-config-keys" class="l2">Defaults and config keys</a></aside>
+  </div>
+  <footer><nav class="map" aria-label="All pages"><div><b>Works without you</b><a href="../../agents/">Agents</a><a href="../../crew/">Crew</a><a href="../../automations/">Automations</a><a href="../../goals/">Goals</a></div><div><b>In the session</b><a href="../../sessions/">Sessions</a><a href="../../terminal/">Terminal</a><a href="../../editor/">Editor</a></div><div><b>Knows your code</b><a href="../../graph/">Code graph</a><a href="../../memory/">Memory</a><a href="../../review/">Code review</a></div><div><b>Stays in bounds</b><a href="../../control/">Control</a><a href="../../isolation/">Isolation</a><a href="../../redaction/">Redaction</a></div><div><b>Plugs into</b><a href="../../models/">Models</a><a href="../../mcp/">MCP servers</a><a href="../../skills/">Skills</a></div><div><b>KodaCode</b><a href="../../docs/" aria-current="page">Docs</a><a href="../../faq/">FAQ</a><a href="../../download/">Download</a></div></nav></footer>
+</div>
+</body>
+</html>

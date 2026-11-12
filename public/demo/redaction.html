@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Redaction Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const BEFORE = "Check that the staging deploy API still accepts this token: ";
+const TOKEN = "[secret 1]";
+const AFTER = ". Then read it from DEPLOY_TOKEN in src/deploy.rs.";
+const SEALED = `${BEFORE}«secret:1»${AFTER}`;
+const COMMAND = "curl -s -H 'Authorization: Bearer «secret:1»' -o /dev/null -w '%{http_code}' https://deploy.staging.acme-api.test/v1/status";
+const FILE = "src/deploy.rs";
+const OLDER = [{ title: "Deliveries to a slow endpoint fail again.", ago: "1d ago", turns: 1 }, { title: "Webhooks time out in staging. Find out why and fix it.", ago: "19d ago", turns: 1 }];
+const TREE = [
+  { name: "Cargo.toml", path: "Cargo.toml" }, { name: "README.md", path: "README.md" },
+  { name: "deploy", path: "deploy", folder: true, closed: true },
+  { name: "migrations", path: "migrations", folder: true, closed: true },
+  { name: "src", path: "src", folder: true },
+  { name: "deploy.rs", path: "src/deploy.rs", depth: 1 }, { name: "main.rs", path: "src/main.rs", depth: 1 }, { name: "router.rs", path: "src/router.rs", depth: 1 },
+  { name: "webhooks", path: "src/webhooks", folder: true, depth: 1, closed: true },
+  { name: "tests", path: "tests", folder: true, closed: true },
+];
+const q = (s) => document.querySelector(s);
+// The chip shows the token as the prompt box does (content.rs secret_token), not the «secret:N» the model receives.
+const setDock = (o) => { $("dock-slot").innerHTML = dock({ runsOn: "hostApply", ...o }); };
+const GROUP = '<div class="flex flex-col py-1">';
+function add(html) {
+  const last = $("log").lastElementChild;
+  if (html.startsWith(GROUP) && last?.dataset.calls) last.insertAdjacentHTML("beforeend", html.slice(GROUP.length, -6));
+  else $("log").insertAdjacentHTML("beforeend", html.startsWith(GROUP) ? html.replace(GROUP, '<div data-calls="1" class="flex flex-col py-1">') : html);
+  $("scroll").scrollTop = $("scroll").scrollHeight;
+}
+const scanCard = `<section class="enter flex flex-col gap-2 rounded-md border px-3 py-2.5 border-hairline bg-panel" aria-label="Scan of this turn's changes"><div class="flex items-center justify-between gap-3"><span class="text-app-xs text-ink">Scanned 1 changed file: no secrets or new vulnerable dependencies.</span><button type="button" aria-label="Review these changes" title="Run the full review: security, quality, best practice and your rules" class="flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition disabled:cursor-not-allowed disabled:opacity-50 border-hairline bg-subtle text-ink/80 hover:bg-hover hover:text-ink">Review these changes</button></div></section>`;
+
+async function play(id) {
+  const p = $("pointer"); p.style.left = "640px"; p.style.top = "820px";
+  mountShell(sessionColumn(), { sessions: OLDER, tree: TREE });
+  setDock({});
+  chapter("Pasting a key as a secret");
+  await sleep(1000); alive(id);
+  await pointTo($("prompt"), id, 0.2, 0.5);
+  for (let i = 1; i <= BEFORE.length; i++) { setDock({ text: BEFORE.slice(0, i), caret: true }); await sleep(24); alive(id); }
+  await sleep(500); alive(id);
+  await click($("dock-secret"), id);
+  setDock({ text: BEFORE + TOKEN, caret: true, secrets: [40] });
+  await sleep(1500); alive(id);
+  for (let i = 1; i <= AFTER.length; i++) { setDock({ text: BEFORE + TOKEN + AFTER.slice(0, i), caret: true, secrets: [40] }); await sleep(24); alive(id); }
+  await sleep(600); alive(id);
+  await click($("send"), id);
+
+  chapter("The model sees a placeholder");
+  $("strip-slot").innerHTML = sessionStrip({ title: SEALED, turn: 0, session: 0 });
+  add(said(SEALED));
+  setDock({ title: SEALED, working: true, activity: "Thinking", elapsed: "1s" });
+  shell({ phase: "Working", doing: SEALED, sessions: [{ title: SEALED, ago: "just now", turns: 1, phase: "Working", selected: true }, ...OLDER], context: { used: 8900 } });
+  await sleep(2200); alive(id);
+
+  chapter("Koda fills it in on this machine");
+  setDock({ title: SEALED, working: true, activity: `$ ${COMMAND}`, elapsed: "3s" });
+  add(calls([call({ kind: "shell", detail: COMMAND, status: "running" })]));
+  await sleep(1400); alive(id);
+  $("log").lastElementChild.innerHTML = call({ kind: "shell", detail: COMMAND, took: "0.8s", body: output(["200"]), open: true }).replace('class="enter ', 'class="');
+  shell({ toolCalls: 1, context: { used: 9800 } });
+  await sleep(1800); alive(id);
+
+  chapter("Out of the code");
+  setDock({ title: SEALED, working: true, activity: "Edit src/deploy.rs", elapsed: "6s" });
+  add(calls([call({ kind: "edit", verb: "Edit", detail: FILE, took: "0.2s", body: editBody(FILE, ["@@ -14,3 +14,3 @@", "-    let token = config.deploy_token.clone();", '+    let token = std::env::var("DEPLOY_TOKEN")?;']) })]));
+  shell({ toolCalls: 2, context: { used: 11200 }, changes: [{ path: FILE, state: "M", added: 1, removed: 1 }], graph: [{ path: FILE, state: "M", definitions: 3, uses: 1, usedBy: 1 }] });
+  await sleep(1200); alive(id);
+  add(answer(`The token works: staging answered 200. \`${FILE}\` now reads it from \`DEPLOY_TOKEN\`, so the code holds no token.`));
+  add(footer("9s", { calls: 2, edited: 1, added: 1, removed: 1 }));
+  $("strip-slot").innerHTML = sessionStrip({ title: SEALED, turn: 11400, session: 11400, hit: "58.3%" });
+  setDock({ title: SEALED });
+  shell({ phase: "Finished", sessions: [{ title: SEALED, ago: "just now", turns: 1, phase: "Finished", selected: true }, ...OLDER], context: { used: 11400 } });
+
+  chapter("The turn's changes are scanned");
+  await sleep(700); alive(id);
+  add(scanCard);
+  await sleep(6000); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Review Report Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<style>
+.browser { width: 100%; height: 100%; border-radius: 12px; overflow: hidden; border: 1px solid #30363d; box-shadow: 0 30px 80px rgb(0 0 0 / .35); display: flex; flex-direction: column; background: #0d1117; }
+.chrome { flex-shrink: 0; display: flex; flex-direction: column; background: #1c2128; border-bottom: 1px solid #30363d; }
+.tabs { display: flex; align-items: flex-end; gap: 8px; height: 36px; padding: 0 12px; }
+.dots { display: flex; gap: 8px; align-self: center; margin-right: 10px; }
+.dots i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+.tab { display: flex; align-items: center; gap: 8px; max-width: 360px; height: 30px; padding: 0 14px; border-radius: 8px 8px 0 0; background: #0d1117; color: #e6edf3; font: 500 12px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tab img { width: 14px; height: 14px; border-radius: 3px; }
+.bar { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; background: #0d1117; }
+.nav { color: #7d8590; font: 16px var(--font-sans); letter-spacing: 6px; }
+.url { flex: 1; display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; border-radius: 13px; background: #161b22; color: #9da7b3; font: 12px var(--font-mono); white-space: nowrap; overflow: hidden; }
+.url b { color: #e6edf3; font-weight: 500; }
+.page { flex: 1; min-height: 0; border: 0; width: 100%; background: #0d1117; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="browser">
+  <div class="chrome">
+    <div class="tabs"><span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span><span class="tab"><img src="../assets/icon.svg" alt="">Review: Send Retry-After and the rate limit headers</span></div>
+    <div class="bar"><span class="nav">‹ › ⟳</span><span class="url">file://<b>/Users/you/dev/acme-api/.koda/reviews/5fe9fb3b-c428-4d66-9726-52b656d892b5.html</b></span></div>
+  </div>
+  <iframe id="page" class="page" src="review-report-page.html" title="The review report"></iframe>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const doc = () => $("page").contentDocument;
+const find = (sel) => doc().querySelector(sel);
+const at = () => doc().scrollingElement.scrollTop;
+async function glide(to, id, ms = 900) {
+  const from = at(), steps = Math.max(1, Math.round(ms / 30));
+  for (let i = 1; i <= steps; i++) {
+    const k = i / steps, eased = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    doc().scrollingElement.scrollTop = from + (to - from) * eased;
+    await sleep(30); alive(id);
+  }
+}
+const topOf = (el) => el.getBoundingClientRect().top + at() - 96;
+async function pointIn(el, id, dx = 0.5, dy = 0.5) {
+  const p = $("pointer"), stage = $("stage").getBoundingClientRect(), frame = $("page").getBoundingClientRect(), box = el.getBoundingClientRect();
+  const scale = stage.width / 1280;
+  p.style.left = `${(frame.left - stage.left + box.left + box.width * dx) / scale}px`;
+  p.style.top = `${(frame.top - stage.top + box.top + box.height * dy) / scale}px`;
+  await sleep(650); alive(id);
+}
+
+async function play(id) {
+  doc().scrollingElement.scrollTop = 0;
+  doc().querySelectorAll("details").forEach((d) => (d.open = false));
+  $("pointer").style.left = "1300px"; $("pointer").style.top = "820px";
+  chapter("The verdict first");
+  await sleep(2600); alive(id);
+  chapter("What to fix first");
+  await glide(topOf(find("h2")), id);
+  await sleep(2000); alive(id);
+  chapter("Each finding: where, why and the fix");
+  await glide(topOf(find("#f1")), id, 1100);
+  await sleep(1400); alive(id);
+  const fix = find("#f1 details summary");
+  await pointIn(fix, id, 0.15);
+  find("#f1 details").open = true;
+  await sleep(1800); alive(id);
+  chapter("Every finding challenged");
+  await glide(topOf(find("#f1 .challenge")) - 300, id);
+  await pointIn(find("#f1 .challenge .score"), id);
+  await sleep(1800); alive(id);
+  chapter("Your own rules");
+  await glide(topOf(find("#f7")), id, 1300);
+  await pointIn(find("#f7 .rule"), id, 0.3);
+  await sleep(2600); alive(id);
+}
+
+$("ptr").outerHTML = POINTER;
+fitStage();
+addEventListener("load", () => loop(play)());
+</script>
+</body>
+</html>

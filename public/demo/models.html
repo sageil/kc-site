@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KodaCode Models Demo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../assets/icon.svg">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../assets/koda-ui.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="frame.css">
+<script src="frame.js"></script>
+<script src="compact.js"></script>
+<script src="shell.js"></script>
+<script src="prefs-ui.js"></script>
+</head>
+<body>
+<div class="stage" id="stage">
+<div class="window">
+  <div class="titlebar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+  <div id="app" class="min-h-0 grow"></div>
+</div>
+<div id="ptr"></div>
+</div>
+<script>
+const USER = ["M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"];
+const q = (s) => document.querySelector(s);
+const KINDS = [
+  ["anthropic", "Anthropic", "AN", "bg-orange-400/15 text-orange-300", "Frontier models for autonomous agent loops", ["API Key"], "console"],
+  ["chatgpt", "ChatGPT", "CG", "bg-teal-400/15 text-teal-300", "Sign in with your ChatGPT account; no API key of its own", ["OAuth / Browser Login"]],
+  ["github-copilot", "GitHub Copilot", "GH", "bg-slate-400/15 text-slate-200", "Sign in with your GitHub account to use your Copilot plan", ["OAuth / Browser Login"]],
+  ["openai", "OpenAI", "OA", "bg-emerald-400/15 text-emerald-300", "Platform account or an API key from the console", ["API Key", "OAuth / Browser Login"], "console"],
+  ["google", "Google", "GO", "bg-sky-400/15 text-sky-300", "Gemini through Google's own endpoint", ["API Key", "OAuth / Browser Login"], "console"],
+  ["deepseek", "DeepSeek", "DS", "bg-cyan-400/15 text-cyan-300", "DeepSeek's own models at a fraction of the price", ["API Key"], "console"],
+  ["qwen", "Qwen", "QW", "bg-violet-400/15 text-violet-300", "Alibaba's DashScope, which is split by region", ["API Key"], "console"],
+  ["ollama", "Ollama Local", "OL", "bg-neutral-400/15 text-neutral-300", "A model running on this machine, with no account at all", [], null, "11434"],
+  ["ollama-cloud", "Ollama Cloud", "OC", "bg-neutral-400/15 text-neutral-100", "Ollama's hosted models, reached with an API key", ["API Key"]],
+  ["openrouter", "OpenRouter", "OR", "bg-indigo-400/15 text-indigo-300", "One key across many vendors' models", ["API Key", "OAuth / Browser Login"], "console"],
+];
+const BASE_URL = { anthropic: "https://api.anthropic.com", chatgpt: "https://chatgpt.com/backend-api/codex", ollama: "http://localhost:11434" };
+const FACTS = {
+  "gpt-5": { facts: [["Context window", "400000"], ["Output cap", "128000"], ["Tools", "yes"], ["Reasoning", "yes"], ["Vision", "yes"], ["Price per million in", "$1.25"], ["Price per million out", "$10.00"]], levels: ["Minimal", "Low", "Medium", "High"] },
+  "claude-sonnet-5-5": { facts: [["Context window", "1000000"], ["Output cap", "64000"], ["Tools", "yes"], ["Reasoning", "yes"], ["Vision", "yes"], ["Price per million in", "$3.00"], ["Price per million out", "$15.00"]], levels: ["Low", "Medium", "High", "Max"] },
+};
+const ALL_LEVELS = ["Off", "Minimal", "Low", "Medium", "High", "Extra high", "Max"];
+const kind = (slug) => KINDS.find((k) => k[0] === slug);
+const tile = (slug) => `<span class="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-app-2xs font-bold tracking-tight ${kind(slug)[3]}">${kind(slug)[2]}</span>`;
+const STATUS_TONE = { connected: "text-accent-emerald-bright", configured: "text-muted", "not connected": "text-dim" };
+const MONO_CAPS = "font-mono text-app-2xs tracking-[0.06em] uppercase";
+const GPT = ["gpt-5", "gpt-5-codex", "gpt-5-mini"];
+let p;
+const start = () => ({ selected: "anthropic", chip: null, menu: false, hover: null, rows: { anthropic: { status: "connected", model: "claude-sonnet-5-5" } }, active: "anthropic", feedback: "", busy: false, picker: false, hoverPick: null });
+
+function providerPicker() {
+  const items = KINDS.map(([slug, name, , , blurb, , , port]) => {
+    const status = p.rows[slug]?.status || "not connected";
+    return { key: slug, label: name, description: blurb, badge: p.active === slug ? "active" : "", group: status === "not connected" ? "Available" : "Yours", trailing: port ? `${status} · ${port}` : status, chosen: slug === p.selected };
+  }).sort((a, b) => (a.group === b.group ? 0 : a.group === "Yours" ? -1 : 1));
+  return pfPanel({ items, groups: [["Yours"], ["Available"]], search: "Search providers", footer: "Add provider", keys: true, end: true, width: "w-96 max-w-[80vw]", active: p.hoverPick, attr: "data-pick" });
+}
+
+function authBlock(slug) {
+  const k = kind(slug), segments = k[5];
+  if (!segments.length) return "";
+  const seg = segments.length > 1
+    ? segments.map((s, i) => `<button type="button" role="radio" aria-checked="${i === 0}" class="${i === 0 ? `flex cursor-pointer items-center justify-center gap-1.5 rounded bg-elevated px-2 py-1 ${MONO_CAPS} text-ink` : `flex cursor-pointer items-center justify-center gap-1.5 rounded px-2 py-1 ${MONO_CAPS} text-dim transition hover:text-muted`}">${s}</button>`).join("")
+    : `<span role="status" aria-label="${segments[0]}" class="col-span-2 flex items-center justify-center gap-1.5 rounded bg-elevated px-2 py-1 ${MONO_CAPS} text-ink">${segments[0]}</span>`;
+  let body;
+  if (segments[0] === "API Key") {
+    body = `<div class="flex flex-col gap-1"><div class="flex items-center justify-between"><label class="${MONO_CAPS} text-muted">API Key</label>${k[6] ? `<a class="flex items-center gap-0.5 ${MONO_CAPS} text-accent-cyan-bright transition hover:text-ink">${k[1]} console${icon("size-3", GLYPH.external)}</a>` : ""}</div><div class="relative flex items-center"><div class="w-full rounded-lg bg-canvas py-2 pr-24 pl-3 font-mono text-app-xs tracking-normal ${p.rows[slug] ? "text-ink" : "text-dim"}" style="min-height:32px">${p.rows[slug] ? "••••••••••••••••••••" : "Paste your key"}</div><div class="absolute right-2 flex items-center gap-1"><button type="button" class="flex cursor-pointer items-center justify-center rounded p-1 text-dim transition hover:bg-hover hover:text-ink">${icon("size-3.5", GLYPH.eye)}</button><button type="button" class="cursor-pointer rounded bg-elevated px-2 py-0.5 font-mono text-app-2xs font-medium text-ink transition hover:bg-elevated">Paste</button></div></div></div>`;
+  } else {
+    const f = p.feedback;
+    let inner;
+    if (f === "signed-in") {
+      inner = `<div class="flex items-center justify-between gap-2 rounded border border-accent-emerald/35 bg-accent-emerald/12 px-2.5 py-2 enter"><div class="flex min-w-0 items-center gap-2">${icon("size-4 shrink-0 text-accent-emerald-bright", GLYPH.check)}<div class="min-w-0"><p class="truncate text-app-xs text-ink">Signed in as dev@acme-api.test</p><p class="${MONO_CAPS} text-accent-emerald-bright">Session stored in your keyring</p></div></div>${actionButton("Sign out")}</div>`;
+    } else {
+      inner = `<div class="flex"><button type="button" id="signin"${p.busy ? " disabled" : ""} class="flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1 text-app-xs transition disabled:cursor-not-allowed disabled:opacity-50 ${ACTION_KIND.primary}">${icon("size-3.5 shrink-0", USER)}Sign in with ${k[1]}</button></div>`;
+      if (f === "starting") inner += `<p class="${MONO_CAPS} text-dim">Starting the sign-in</p>`;
+      if (f === "awaiting") inner += `<div class="flex flex-col gap-1.5 rounded border border-accent-amber/35 bg-accent-amber/12 px-2.5 py-2 enter"><p class="${MONO_CAPS} text-accent-amber-bright">Waiting for you to finish in the browser</p><p class="select-all font-mono text-app tracking-[0.12em] text-ink">K7QP-4MZD</p><a class="flex items-center gap-1 self-start ${MONO_CAPS} text-accent-cyan-bright transition hover:text-ink">Open the page to approve${icon("size-3", GLYPH.external)}</a></div>`;
+    }
+    body = `<div class="flex flex-col gap-2">${inner}</div>`;
+  }
+  return `<div class="flex flex-col gap-2"><div class="grid grid-cols-2 gap-0.5 rounded-lg border border-hairline bg-canvas p-0.5" role="group">${seg}</div>${body}</div>`;
+}
+
+function modelDetails(model) {
+  const known = FACTS[model];
+  const facts = model ? `<div class="flex flex-col gap-1.5 rounded bg-subtle px-2.5 py-2"><div class="flex items-center justify-between gap-2"><span class="${MONO_CAPS} text-muted">What the catalogue says</span><button type="button" class="flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 ${MONO_CAPS} text-dim transition hover:bg-hover hover:text-ink">${icon("size-3", GLYPH.reload)}Refresh</button></div><div class="flex flex-col gap-1 text-app-2xs">${(known ? known.facts : [["Context window", "unknown"]]).map(([l, v]) => `<div class="flex items-baseline justify-between gap-2"><span class="text-dim">${l}</span><span class="tabular-nums text-ink">${v}</span></div>`).join("")}</div></div>` : "";
+  const levels = model ? known?.levels || [] : ALL_LEVELS;
+  const level = (label, on) => `<button type="button" role="radio" class="${on ? `cursor-pointer rounded bg-elevated px-2 py-1 ${MONO_CAPS} text-ink` : `cursor-pointer rounded px-2 py-1 ${MONO_CAPS} text-dim transition hover:text-muted`}">${label}</button>`;
+  const thinking = levels.length ? `<div class="flex flex-col gap-1"><span class="${MONO_CAPS} text-dim">Thinking</span><div class="flex flex-wrap gap-0.5 rounded-lg border border-hairline bg-canvas p-0.5" role="radiogroup">${level("Default", true)}${levels.map((l) => level(l, false)).join("")}</div></div>` : "";
+  return facts + thinking;
+}
+const fieldInput = (label, placeholder) => `<div class="flex flex-col gap-1"><span class="text-app-2xs text-muted">${label}</span><div class="w-full rounded bg-canvas px-2.5 py-1.5 font-mono text-app-xs text-dim" style="min-height:28px">${placeholder}</div></div>`;
+const advanced = (slug, connected) => `<details class="group rounded-lg bg-subtle"><summary class="flex cursor-pointer list-none select-none items-center justify-between gap-2 px-2.5 py-2"><span class="flex items-center gap-1.5 font-mono text-app-xs font-medium tracking-[0.04em] text-muted transition group-hover:text-ink">${icon("size-3.5 shrink-0 text-dim transition-transform -rotate-90 group-open:rotate-0", GLYPH.chevronDown)}Advanced endpoint parameters</span>${connected ? '<span class="font-mono text-app-2xs uppercase tracking-[0.08em] text-dim">Configured</span>' : ""}</summary><div class="flex flex-col gap-2 px-3 pt-1 pb-3">${fieldInput("Base URL / HTTP Proxy", "https://your-endpoint.example")}</div></details>`;
+
+function providers() {
+  const slug = p.selected, k = kind(slug), row = p.rows[slug];
+  const status = row?.status || "not connected", active = p.active === slug, saved = !!row && slug === "anthropic";
+  const model = row?.model || "";
+  const modelPanel = `<div class="flex flex-col gap-1"><span class="text-app-2xs text-muted">Default Agent Model</span>${pfDrop("p-model", model, GPT.map((m) => [m, m]), { open: p.menu, filter: true, active: p.hover, placeholder: "Choose a model" })}<span class="text-app-2xs text-dim">Type to filter the ${GPT.length} models this provider reported</span></div>`;
+  const chips = `<span class="flex items-center gap-1.5 rounded-full border border-hairline bg-subtle px-2.5 py-0.5 font-mono text-app-2xs"><span class="text-dim">status</span><span class="${STATUS_TONE[status]}">${status}</span></span>`
+    + pfChip("active", "active", active ? "yes" : "no", "The provider sessions use unless a project or an agent picks another.", false)
+    + pfChip("model", "default model", model || "choose a model", "What sessions with this provider run on, unless a project or an agent picks another.", p.chip === "model", modelPanel);
+  const pane = `<div class="flex min-h-0 grow flex-col overflow-hidden"><div class="flex h-full min-h-0 grow flex-col">
+    <div class="flex shrink-0 flex-col gap-1 border-b border-hairline px-5 py-4"><h1 class="text-app font-semibold text-ink">Models &amp; providers</h1><p class="text-app-sm leading-relaxed text-muted">Where models come from: sign in, pick a default model, and choose the active one</p></div>
+    <div class="flex min-h-0 grow flex-col bg-panel">
+      <div class="flex shrink-0 flex-col gap-2 border-b border-hairline px-5 pt-3 pb-3">
+        <div class="flex items-center gap-2">${tile(slug)}<span class="min-w-0 grow truncate font-mono text-app font-semibold text-ink">${k[1]}</span>${pfTitle("all", "All providers", p.picker ? providerPicker() : "")}</div>
+        <span class="px-1 text-app-sm text-muted">${k[4]}</span>
+        ${pfChipRow("koda-provider-chips", "Provider settings", !!p.chip, chips)}
+      </div>
+      <div class="flex min-h-0 grow flex-col justify-between gap-3 overflow-y-auto px-5 py-3"><div class="flex flex-col gap-3">${authBlock(slug)}${modelDetails(model)}${advanced(slug, status === "connected")}</div><div class="flex flex-col gap-3"><div class="flex items-start gap-2 rounded border border-hairline bg-canvas px-2.5 py-2">${icon("mt-0.5 size-4 shrink-0 text-accent-cyan", GLYPH.shield)}<p class="text-app-2xs leading-4 text-dim">Keys are stored in your OS keyring, not in Koda's config file and not on any server. A config file is safe to paste into a bug report; a key is not.</p></div></div></div>
+    </div>
+    ${screenFooter("", (saved ? actionButton("Remove provider", "danger", GLYPH.close) : "") + actionButton(p.busy ? "Testing…" : "Test Connection", "secondary", GLYPH.reload, "test") + actionButton("Cancel") + actionButton("Save &amp; Set as Active", "primary", GLYPH.check, "save"))}
+  </div></div>`;
+  return pfPrefs("Models &amp; providers", pane, { fill: false });
+}
+const paint = () => openScreen("settings", providers());
+
+async function play(id) {
+  const pt = $("pointer"); pt.style.left = "640px"; pt.style.top = "820px";
+  p = start();
+  mountShell(sessionColumn(), { modelProject: false, sessions: [{ title: "Webhooks time out in staging. Find out why and fix it.", ago: "3d ago", turns: 1 }, { title: "Rotate the webhook secret", ago: "7d ago", turns: 3 }] });
+  chapter("Models & providers");
+  await sleep(900); alive(id);
+  await click($("sh-model"), id);
+  paint(); await sleep(1400); alive(id);
+
+  chapter("Choosing ChatGPT");
+  await click($("all"), id);
+  p.picker = true; paint(); await sleep(1100); alive(id);
+  await pointTo(q('[data-pick="chatgpt"]'), id);
+  p.hoverPick = "chatgpt"; paint(); await sleep(300); alive(id);
+  await click(q('[data-pick="chatgpt"]'), id);
+  Object.assign(p, { picker: false, hoverPick: null, selected: "chatgpt", feedback: "" }); paint(); await sleep(1200); alive(id);
+  chapter("Signing in with the browser");
+  await click($("signin"), id);
+  p.busy = true; p.feedback = "starting"; paint(); await sleep(700); alive(id);
+  p.feedback = "awaiting"; paint(); await sleep(2400); alive(id);
+  p.busy = false; p.feedback = "signed-in"; p.rows.chatgpt = { status: "connected", model: "" }; paint(); await sleep(1600); alive(id);
+
+  chapter("Picking a default model");
+  await click($("chip-model"), id);
+  p.chip = "model"; paint(); await sleep(800); alive(id);
+  await click($("p-model"), id);
+  p.menu = true; paint(); await sleep(700); alive(id);
+  await pointTo(q('[data-opt="gpt-5"]'), id);
+  p.hover = "gpt-5"; paint(); await sleep(250); alive(id);
+  await click(q('[data-opt="gpt-5"]'), id);
+  p.rows.chatgpt.model = "gpt-5"; p.menu = false; p.hover = null; paint(); await sleep(700); alive(id);
+  await click($("chip-model"), id);
+  p.chip = null; paint(); await sleep(1600); alive(id);
+
+  chapter("Save and set as active");
+  await click(q('[data-act="save"]'), id);
+  p.active = "chatgpt";
+  closeScreen();
+  shell({ model: "gpt-5", provider: "ChatGPT" });
+  await sleep(500); alive(id);
+  await pointTo($("sh-model"), id);
+  await sleep(3200); alive(id);
+}
+$("ptr").outerHTML = POINTER;
+fitStage();
+loop(play)();
+</script>
+</body>
+</html>

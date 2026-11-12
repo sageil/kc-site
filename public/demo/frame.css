@@ -1,0 +1,46 @@
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+body { display: flex; align-items: center; justify-content: center; box-sizing: border-box; font-family: var(--font-sans); color: var(--koda-ink); }
+.stage { position: relative; width: 1280px; height: 780px; transform-origin: center; flex-shrink: 0; }
+.window { width: 100%; height: 100%; border-radius: 12px; overflow: hidden; border: 1px solid var(--koda-hairline); box-shadow: 0 30px 80px rgb(0 0 0 / 0.35); display: flex; flex-direction: column; background: var(--koda-canvas); }
+.titlebar { height: 28px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--koda-well); border-bottom: 1px solid var(--koda-hairline); }
+.titlebar i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+.press { transform: scale(0.94); filter: brightness(1.25); transition: transform .12s, filter .12s; }
+.enter { animation: enter .3s ease-out both; }
+@keyframes enter { from { opacity: 0; transform: translateY(4px); } }
+.caret::after { content: ""; display: inline-block; width: 7px; height: 13px; margin-left: 1px; vertical-align: -2px; background: var(--koda-accent-indigo-bright); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.pointer { position: absolute; z-index: 60; width: 18px; height: 18px; pointer-events: none; transition: left .55s cubic-bezier(.5,0,.2,1), top .55s cubic-bezier(.5,0,.2,1); filter: drop-shadow(0 2px 3px rgb(0 0 0 / .4)); }
+
+.seeking *, .seeking *::before, .seeking *::after { transition: none !important; animation: none !important; }
+.paused *, .paused *::before, .paused *::after { animation-play-state: paused !important; }
+
+.p-overlay { position: absolute; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; border: 0; padding: 0; background: transparent; cursor: pointer; opacity: 0; transition: opacity .2s, background-color .2s; }
+.p-overlay.shown { opacity: 1; background: rgb(0 0 0 / .28); }
+.p-overlay span { display: flex; align-items: center; justify-content: center; width: 104px; height: 104px; border-radius: 50%; background: color-mix(in srgb, var(--koda-elevated) 88%, transparent); border: 1px solid var(--koda-hairline); box-shadow: 0 18px 50px rgb(0 0 0 / .45); color: var(--koda-ink); }
+.p-overlay:not(.shown) span { transform: scale(.85); }
+.p-big { width: 44px; height: 44px; }
+.paused .p-overlay *, .seeking .p-overlay * { animation: none; }
+
+.player { position: fixed; left: 12px; right: 12px; bottom: 6px; height: 34px; z-index: 80; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 10px; background: color-mix(in srgb, var(--koda-well) 92%, transparent); border: 1px solid var(--koda-hairline); font: 500 11px var(--font-mono); color: var(--koda-muted); user-select: none; -webkit-user-select: none; }
+.p-btn { display: flex; align-items: center; justify-content: center; height: 24px; min-width: 24px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--koda-ink); cursor: pointer; font: inherit; }
+.p-btn:hover { background: var(--koda-hover); }
+.p-btn:focus-visible, .p-track:focus-visible { outline: 2px solid var(--koda-accent-cyan); outline-offset: 1px; }
+.p-ico { width: 15px; height: 15px; }
+.p-time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.p-time b { color: var(--koda-ink); font-weight: 600; }
+.p-track { position: relative; flex: 1; min-width: 80px; height: 24px; cursor: pointer; touch-action: none; }
+.p-rail { position: absolute; left: 0; right: 0; top: 10px; height: 4px; border-radius: 4px; background: var(--koda-hover); overflow: hidden; }
+.p-rail i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--koda-accent-indigo), var(--koda-accent-cyan)); }
+.p-marks { position: absolute; inset: 0; pointer-events: none; }
+.p-marks button { position: absolute; top: 7px; width: 10px; height: 10px; margin-left: -5px; padding: 0; border: 0; background: transparent; cursor: pointer; pointer-events: auto; }
+.p-marks button::after { content: ""; position: absolute; left: 4px; top: 1px; width: 2px; height: 8px; border-radius: 1px; background: var(--koda-ink); opacity: .55; }
+.p-marks button:hover::after { opacity: 1; }
+.p-knob { position: absolute; top: 6px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--koda-ink); box-shadow: 0 1px 4px rgb(0 0 0 / .4); pointer-events: none; }
+.p-tip { position: absolute; bottom: 26px; transform: translateX(-50%); padding: 3px 7px; border-radius: 6px; white-space: nowrap; background: var(--koda-elevated); border: 1px solid var(--koda-hairline); color: var(--koda-ink); opacity: 0; pointer-events: none; transition: opacity .15s; }
+.p-track:hover .p-tip { opacity: 1; }
+.p-chapter { flex-shrink: 1; min-width: 0; max-width: 32%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--koda-ink); }
+.p-speed { min-width: 34px; color: var(--koda-muted); }
+.p-btn svg, .p-overlay svg, .p-marks button { pointer-events: none; }
+.p-marks button { pointer-events: auto; }
+.p-overlay:focus { outline: none; }
+.p-overlay:focus-visible span { outline: 2px solid var(--koda-accent-cyan); outline-offset: 3px; }
